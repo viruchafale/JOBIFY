@@ -1,0 +1,14 @@
+{
+  "name": "job-portal",
+  "version": "1.0.0",
+  "scripts": {
+    "dev:auth": "cd services/auth && npm run dev",
+    "dev:utils": "cd services/utils && npm run dev",
+    "dev:user": "cd services/user && npm run dev",
+    "dev:job": "cd services/job && npm run dev",
+    "dev": "concurrently \"npm run dev:auth\" \"npm run dev:utils\" \"npm run dev:user\" \"npm run dev:job\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

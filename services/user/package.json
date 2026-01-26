@@ -14,6 +14,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/axios": "^0.9.36",
     "@types/cors": "^2.8.19",
     "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.6",
@@ -21,10 +22,12 @@
     "@types/multer": "^2.0.0",
     "concurrently": "^9.2.1",
     "nodemon": "^3.1.11",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "@neondatabase/serverless": "github:neondatabase/serverless",
+    "axios": "^1.13.2",
     "cors": "^2.8.5",
     "datauri": "^4.1.0",
     "dotenv": "^17.2.3",

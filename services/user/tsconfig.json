@@ -7,7 +7,10 @@
     "rootDir": "src",
     "esModuleInterop": true,
     "strict": true,
-    "allowImportingTsExtensions": false,
-    "allowSyntheticDefaultImports": true
+    "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "noEmit": true
   }
 }

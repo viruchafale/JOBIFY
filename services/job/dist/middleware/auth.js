@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { sql } from "../utils/db.js.js";
+import { sql } from "../utils/db.js";
 export const isAuth = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;

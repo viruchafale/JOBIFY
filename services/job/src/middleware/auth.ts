@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import jwt, { decode, JwtPayload } from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import { sql } from "../utils/db.js";
 
 interface User {

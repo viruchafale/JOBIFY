@@ -2,6 +2,7 @@ import getBuffer from "../utils/buffer.js";
 import { sql } from "../utils/db.js";
 import ErrorHandler from "../utils/errorHandler.js";
 import { TryCatch } from "../utils/TryCatch.js";
+import axios from "axios";
 export const createCompany = TryCatch(async (req, res) => {
     const user = req.user;
     if (!user) {
@@ -22,14 +23,23 @@ export const createCompany = TryCatch(async (req, res) => {
     if (!file) {
         throw new ErrorHandler(400, "Company Logo file is required");
     }
-    const fileBUffer = getBuffer(file);
-    if (!fileBUffer || !fileBUffer.content) {
+    const fileBuffer = getBuffer(file);
+    if (!fileBuffer || !fileBuffer.content) {
         throw new ErrorHandler(500, "Failed to create file buffer");
     }
-    const { data } = await axios.post(`${process.env.UPLOAD_SERVICE}/api/utils/upload`, { buffer: fileBUffer.content });
+    let data;
+    try {
+        const response = await axios.post(`${process.env.UPLOAD_SERVICE}/api/utils/upload`, { buffer: fileBuffer.content });
+        data = response.data;
+    }
+    catch (error) {
+        throw new ErrorHandler(500, error.response?.data?.message || "Upload failed");
+    }
     const [newCompany] = await sql `
-        INSERT INTO companies (name,description ,website ,logo,logo_public_id,recruiter_id) VALUES (${name}, ${description},${data.url},${data.public_id},${req.user?.user_id}) RETURNING *
-      `;
+          INSERT INTO companies (name, description, website, logo, logo_public_id, recruiter_id) 
+          VALUES (${name}, ${description}, ${website}, ${data.url}, ${data.public_id}, ${user.user_id}) 
+          RETURNING *
+        `;
     res.json({
         message: "Company Added Succesfully  ",
         company: newCompany

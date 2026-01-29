@@ -1,4 +1,4 @@
-import ErrorHandler from "./errorHandler.js.js";
+import ErrorHandler from "./errorHandler.js";
 export const TryCatch = (controller) => async (req, res, next) => {
     try {
         await controller(req, res, next);

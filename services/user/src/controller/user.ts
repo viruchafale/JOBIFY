@@ -1,9 +1,11 @@
+import { JsonWebTokenError } from "jsonwebtoken";
 import { AuthenticatedRequest } from "../middleware/auth";
 import getBuffer from "../utils/buffer";
 import { sql } from "../utils/db";
 import ErrorHandler from "../utils/errorHandler";
 import { TryCatch } from "../utils/TryCatch";
 import axios from "axios";
+import { application } from "express";
 
 export const myProfile = TryCatch(
   async (req: AuthenticatedRequest, res, next) => {
@@ -203,12 +205,88 @@ export const deleteSkillFromUser = TryCatch(
     const result = await sql`
    DELETE FROM user_skills WHERE user_id=${user.user_id} AND skill_id =(SELECT skill_id FROM skills WHERE name=${skillName.trim()}) RETURNING user_id
   `;
-  if(result.length===0){
-    throw new ErrorHandler(404,`Skill ${skillName.trim()} was not found`)
+    if (result.length === 0) {
+      throw new ErrorHandler(404, `Skill ${skillName.trim()} was not found`);
+    }
+
+    res.json({
+      message: `Skill ${skillName.trim()} was deleted successfully`,
+    });
+  },
+);
+
+export const applyForJob = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const user = req.user;
+
+  if (!user) {
+    throw new ErrorHandler(401, "Authentication required");
+  }
+
+  if (user.role !== "jobseeker") {
+    throw new ErrorHandler(403, "Forbidden you are not allowed for this api");
+  }
+
+  const applicant_id = user.user_id;
+
+  const resume = user.resume;
+  if (!resume) {
+    throw new ErrorHandler(
+      400,
+      "You need to add resume in your profile too apply for the job ",
+    );
+  }
+
+  const { job_id } = req.body;
+  if (!job_id) {
+    throw new ErrorHandler(400, "job id is required");
+  }
+
+  const [job] = await sql`
+  SELECT is_active FROM jobs WHERE job_id=${job_id}
+  `;
+
+  if (!job) {
+    throw new ErrorHandler(404, "No jobs with this id");
+  }
+
+  if (!job.is_active) {
+    throw new ErrorHandler(400, "Job is not active");
+  }
+
+  const now = Date.now();
+
+  const subTime = req.user?.subscription
+    ? new Date(req.user.subscription).getTime()
+    : 0;
+
+  const isSubscribed = subTime > now;
+
+  let newApplication;
+  try {
+    [newApplication] =
+      await sql`INSERT INTO applications (job_id,application_id,applicant_email,resume,subscribed) VALUES(${job_id},${applicant_id},${user?.email},${resume},${isSubscribed})`;
+  } catch (error: any) {
+    if (error.code === "23505") {
+      throw new ErrorHandler(409, "you have already applied to job");
+    }
+
+    throw error;
   }
 
   res.json({
-    message:`Skill ${skillName.trim()} was deleted successfully`
+    message:"Applied for the job successfully",
+    application:newApplication
   })
-  },
-);
+});
+
+
+
+export const getAllApplications=TryCatch(async(req:AuthenticatedRequest,res)=>{
+  // console.log(req.user?.user_id)
+  const application =await sql ` 
+   SELECT a.*,j.title AS job_title ,j.salary AS job_salary,j.location AS job_location FROM applications a JOIN jobs j ON a.job_id =j.job_id WHERE a.application_id =${req.user?.user_id}
+  `
+  // console.log(req.user?.user_id)
+
+  res.json(application) 
+})

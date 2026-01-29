@@ -14,6 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^1.38.0",
     "@types/kafkajs": "^1.8.2",
     "axios": "^1.13.2",
     "cloudinary": "^2.9.0",

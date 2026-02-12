@@ -1,12 +1,15 @@
+import CareerGuide from '@/components/career-guide'
+import Hero from '@/components/hero'
 import { Button } from '@/components/ui/button'
 import React from 'react'
 
-const page = () => {
+const Home= () => {
   return (
     <div>
-      <Button>shadcn button</Button>
+      <Hero/>
+      <CareerGuide/>
     </div>
   )
 }
 
-export default page
+export default Home

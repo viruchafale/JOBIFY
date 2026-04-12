@@ -1,13 +1,15 @@
 "use client";
-import { CareerGuideResponse, utils_service } from "@/type";
+import { CareerGuideResponse } from "@/type";
 import {
   ArrowRight,
+  BookOpen,
   Briefcase,
   Lightbulb,
   Loader2,
   Sparkle,
   Sparkles,
   Target,
+  TrendingUp,
   X,
 } from "lucide-react";
 import React, { useState } from "react";
@@ -23,6 +25,8 @@ import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
 import axios from "axios";
+import { utils_service } from "@/context/AppContext";
+import toast from "react-hot-toast";
 
 const CareerGuide = () => {
   const [open, setOpen] = useState(false);
@@ -59,10 +63,10 @@ const CareerGuide = () => {
         },
       );
       setResponse(data);
-      alert("Career guidance generated");
+      toast.success("Career guidance generated");
     } catch (error) {
       console.log("Failed to get career guidance ", error);
-      alert("Failed to get career guidance");
+      toast.error("Failed to get career guidance");
     } finally {
       setLoading(false);
     }
@@ -74,25 +78,25 @@ const CareerGuide = () => {
     setOpen(false);
   };
   return (
-    <div className="max-w-7xl mx-auto px-4 py-16">
+    <section className="shell py-16">
+      <div className="rounded-[2rem] border border-border/60 bg-gradient-to-br from-background via-card to-secondary/40 p-6 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)] sm:p-8 lg:p-10">
       <div className="text-center mb-12">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border bg-blue-50 dark:bg-blue-950 mb-4">
-          <Sparkles size={16} className="text-blue-600" />
+        <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-4 py-2 mb-4">
+          <Sparkles size={16} className="text-primary" />
           <span className="text-sm font-medium">
-            {" "}
             AI-Powered Career Guidance
           </span>
         </div>
         <h2 className="text-3xl md:text-4xl font-bold mb-4">
           Discover Your Career Path
         </h2>
-        <p className="text-lg opacity-70 max-w-2xl mx-auto mb-8">
-          get personalized job recommendation and learning roadmaps based on
-          your skills
+        <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
+          Get personalized job recommendations and a practical learning roadmap
+          based on the skills you already have.
         </p>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size={"lg"} className="gap-2 h-12 px-8">
+            <Button size={"lg"} className="gap-2 h-12 px-8 rounded-2xl shadow-sm">
               <Sparkle size={18} />
               Get Career Guidance <ArrowRight size={18} />
             </Button>
@@ -139,8 +143,7 @@ const CareerGuide = () => {
                             <span className="text-sm font-medium">{s}</span>
                             <button
                               onClick={() => removeSkills(s)}
-                              className="h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center
-"
+                              className="h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center"
                             >
                               <X size={13} />
                             </button>
@@ -172,10 +175,7 @@ const CareerGuide = () => {
             ) : (
               <>
                 <DialogHeader>
-                  <DialogTitle
-                    className="text-2xl flex items-center gap-2
-                "
-                  >
+                  <DialogTitle className="text-2xl flex items-center gap-2">
                     <Target className="text-blue-600" />
                     Your Personalized Career Guide
                   </DialogTitle>
@@ -205,17 +205,94 @@ const CareerGuide = () => {
                         <div
                           className="p-4 rounded-lg border hover:border-blue-500 transition-colors"
                           key={index}
-                        ></div>
+                        >
+                          <h4 className="font-semibold text-base mb-2">
+                            {job.title}
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="">
+                              <span className="font-medium opacity-70">
+                                Responsibilities:
+                              </span>
+                              <span className="opacity-80">{job.why}</span>
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
+                  {/* skills to learn  */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <TrendingUp size={20} className="text-blue-600" />
+                      Skills to enhance your career
+                    </h3>
+                    <div className="space-y-4">
+                      {response.skillsToLearn.map((category, index) => (
+                        <div key={index} className="space-y-2">
+                          <h4 className="font-semibold text-sm text-blue-600">
+                            {category.category}
+                          </h4>
+                          <div className="space-y-2">
+                            {category.skills.map((skill, sindex) => (
+                              <div
+                                key={sindex}
+                                className="p-3 rounded-lg bg-secondary border text-sm"
+                              >
+                                <p className="font-medium mb-1">
+                                  {skill.title}
+                                </p>
+                                <p className="text-xs opacity-70 mb-1">
+                                  <span className="font-medium">why:</span>
+                                  {skill.why}
+                                </p>
+                                <p className="text-xs opacity-70 mb-1">
+                                  <span className="font-medium">How:</span>
+                                  {skill.how}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* learning approach */}
+                  <div className="p-4 rounded-lg border bg-blue-50 dark:bg-blue-950/20">
+                    <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                      <BookOpen size={20} className="text-blue-600" />
+                      {response.learningApproach.title}
+                    </h3>
+                    <ul className="space-y-2">
+                      {response.learningApproach.points.map((point, index) => (
+                        <li
+                          key={index}
+                          className="text-sm flex items-start gap-2"
+                        >
+                          <span className="text-blue-600 mt-0.5">·</span>
+                          <span
+                            className=""
+                            dangerouslySetInnerHTML={{ __html: point }}
+                          ></span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <Button
+                    onClick={resetDialog}
+                    variant={"outline"}
+                    className="w-full"
+                  >
+                    start New Analysis
+                  </Button>
                 </div>
               </>
             )}
           </DialogContent>
         </Dialog>
       </div>
-    </div>
+      </div>
+    </section>
   );
 };
 

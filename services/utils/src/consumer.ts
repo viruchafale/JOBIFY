@@ -33,14 +33,14 @@ export const startSendMailConsumer = async () => {
             },
           });
           await transporter.sendMail({
-            from: "Hireheaven <no-reply>",
+            from: "JobiFy <no-reply>",
             to,
             subject,
             html,
           });
           console.log(`Mail has been sent to ${to}`);
         } catch (error) {
-          console.log("failed to send the mail",error);
+          console.log("failed to send the mail", error);
         }
       },
     });

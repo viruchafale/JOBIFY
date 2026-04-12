@@ -6,7 +6,7 @@ import ErrorHandler from "../utils/errorHandler.js";
 import { TryCatch } from "../utils/TryCatch.js";
 import axios from "axios";
 import { transcode } from "buffer";
-import { applicationStatusUpdateTemplate } from "../template.js";
+import { applicationStatusUpdateTemplate, applyToJobTemplate } from "../template.js";
 import { publishToTopic } from "../producer.js";
 import { error } from "console";
 
@@ -372,3 +372,83 @@ export const updateApplication=TryCatch(async (req:AuthenticatedRequest,res)=>{
     })
 
 })
+
+export const applyJob = TryCatch(async (req: AuthenticatedRequest, res) => {
+  const user = req.user;
+
+  if (!user) {
+    throw new ErrorHandler(401, "Authentication required");
+  }
+
+  if (user.role !== "jobseeker") {
+    throw new ErrorHandler(403, "Forbidden: Only jobseekers can apply for jobs");
+  }
+
+  const { jobId } = req.params;
+
+  const [job] = await sql`SELECT * FROM jobs WHERE job_id=${jobId} AND is_active=true`;
+
+  if (!job) {
+    throw new ErrorHandler(404, "Job not found or is no longer active");
+  }
+
+  const [existingApplication] = await sql`SELECT * FROM applications WHERE job_id=${jobId} AND applicant_email=${user.email}`;
+
+  if (existingApplication) {
+    throw new ErrorHandler(409, "You have already applied for this job");
+  }
+
+  // Assuming resume is passed as URL from user profile, or uploaded
+  let resumeUrl = req.body.resume;
+
+  if (!resumeUrl && user.resume) {
+      resumeUrl = user.resume;
+  }
+  
+  if (!resumeUrl) {
+    // If not in body or user profile, maybe a file was uploaded?
+    const file = req.file;
+    if (file) {
+      const fileBuffer = getBuffer(file);
+      if (!fileBuffer || !fileBuffer.content) {
+        throw new ErrorHandler(500, "Failed to create file buffer");
+      }
+      try {
+        const response = await axios.post(
+          `${process.env.UPLOAD_SERVICE}/api/utils/upload`,
+          { buffer: fileBuffer.content },
+        );
+        resumeUrl = response.data.url;
+      } catch (error: any) {
+        throw new ErrorHandler(
+          500,
+          error.response?.data?.message || "Upload failed",
+        );
+      }
+    } else {
+        throw new ErrorHandler(400, "Resume is required");
+    }
+  }
+
+  const [newApplication] = await sql`
+    INSERT INTO applications (job_id, applicant_email, resume) 
+    VALUES (${jobId}, ${user.email}, ${resumeUrl}) 
+    RETURNING *
+  `;
+
+  // Publish event to send confirmation email
+  const message = {
+    to: user.email,
+    subject: "Application Submitted - Job portal",
+    html: applyToJobTemplate(job.title)
+  };
+
+  publishToTopic("send-mail", message).catch(error => {
+    console.error("Failed to publish message to kafka", error);
+  });
+
+  res.json({
+    message: "Applied successfully",
+    application: newApplication
+  });
+});

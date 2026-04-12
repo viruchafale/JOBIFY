@@ -12,6 +12,7 @@ import {
   getSingleJobs,
   updateApplication,
   updateJob,
+  applyJob,
 } from "../controller/jobs.js";
 
 const router = express.Router();
@@ -26,4 +27,5 @@ router.get("/all",getAllActiveJobs)
 router.get("/:jobId",getSingleJobs)
 router.get("/application/:jobId",isAuth,getAllApplicationForJOb)
 router.put("/application/update/:id",isAuth,updateApplication)
+router.post("/apply/:jobId", isAuth, uploadFile, applyJob);
 export default router;

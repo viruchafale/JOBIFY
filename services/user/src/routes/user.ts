@@ -1,5 +1,5 @@
 import express from "express";
-import { isAuth } from "../middleware/auth";
+import { isAuth } from "../middleware/auth.js";
 import {
   addSkillToUser,
   applyForJob,
@@ -10,8 +10,8 @@ import {
   updateProfilePic,
   updateResume,
   updateUserProfile,
-} from "../controller/user";
-import uploadFile from "../middleware/multer";
+} from "../controller/user.js";
+import uploadFile from "../middleware/multer.js";
 const router = express.Router();
 
 router.get("/me", isAuth, myProfile);

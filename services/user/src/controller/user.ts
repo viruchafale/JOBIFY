@@ -1,9 +1,9 @@
 import { JsonWebTokenError } from "jsonwebtoken";
-import { AuthenticatedRequest } from "../middleware/auth";
-import getBuffer from "../utils/buffer";
-import { sql } from "../utils/db";
-import ErrorHandler from "../utils/errorHandler";
-import { TryCatch } from "../utils/TryCatch";
+import { AuthenticatedRequest } from "../middleware/auth.js";
+import getBuffer from "../utils/buffer.js";
+import { sql } from "../utils/db.js";
+import ErrorHandler from "../utils/errorHandler.js";
+import { TryCatch } from "../utils/TryCatch.js";
 import axios from "axios";
 import { application } from "express";
 

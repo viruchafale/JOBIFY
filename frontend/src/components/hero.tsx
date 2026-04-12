@@ -1,101 +1,141 @@
-import { ArrowRight, Briefcase, Search, TrendingUp } from "lucide-react";
+import {
+  ArrowRight,
+  Briefcase,
+  Building2,
+  MapPin,
+  Search,
+  Sparkles,
+  Star,
+  TrendingUp,
+} from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 import React from "react";
 import { Button } from "./ui/button";
-import Link from "next/link";
 
 const Hero = () => {
   return (
-    <section className="relative overflow-hidden bg-secondary">
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-20 right-10 w-96 h-96 rounded-full blur-3xl"></div>
-      </div>
-
-      <div className="container mx-auto px-5 py-16 md:py-24 relative">
-        <div className="flex flex-col md:flex-row items-center gap-12 md:gap-16">
-          <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-6 w-full md:w-1/2">
-            {/* badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border bg-background/50 backdrop-blur-sm">
-              <TrendingUp size={16} className="text-blue-600" />
-              <span className="text-sm font-medium">
-                #1 job platform in india
-              </span>
+    <section className="relative overflow-hidden pb-10 pt-8 sm:pt-12 lg:pb-20">
+      <div className="shell">
+        <div className="grid items-center gap-10 lg:grid-cols-[1.08fr_0.92fr] lg:gap-14">
+          <div className="relative">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/80 px-4 py-2 text-sm font-medium shadow-sm backdrop-blur">
+              <Sparkles size={16} className="text-primary" />
+              AI-assisted job search for ambitious teams and candidates
             </div>
-            {/* {main heading} */}
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
-              Find Your Dream Job at{" "}
-              <span className="inline-block">
-                Hire <span className="text-red-500">Heaven</span>
+
+            <h1 className="max-w-3xl text-5xl font-bold leading-[0.98] tracking-tight sm:text-6xl lg:text-7xl">
+              Build the next move in your career
+              <span className="mt-2 block bg-gradient-to-r from-primary via-teal-500 to-amber-500 bg-clip-text text-transparent">
+                with a portal that feels premium
               </span>
             </h1>
-            {/* description */}
-            <p className="text-lg md:text-xl leading-relaxed opacity-80 max-w-2xl">
-              Connect with top employer and discover opportunitiies that match
-              your skills. Wheather youre a job seeker or recruiter,we have got
-              you covered with powerful tools and semless experience.
+
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
+              Find standout roles, sharpen your resume, and get guided by AI
+              insights in one place. Designed for job seekers who want clarity
+              and recruiters who want momentum.
             </p>
-            {/* stats */}
-            <div className="flex flex-wrap justify-center md:justify-start gap-8 py-4">
-              <div className="text-center md:text-left">
-                <p className="text-3xl font-bold text-blue-600">10k+</p>
-                <p className="text-sm opacity-70">Active Jobs</p>
-              </div>
 
-              <div className="text-center md:text-left">
-                <p className="text-3xl font-bold text-blue-600">5k+</p>
-                <p className="text-sm opacity-70">Companies</p>
-              </div>
-
-              <div className="text-center md:text-left">
-                <p className="text-3xl font-bold text-blue-600">50k+</p>
-                <p className="text-sm opacity-70">job seeker</p>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4 pt-2">
-              <Link href={"/jobs"}>
+            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+              <Link href="/jobs" className="w-full sm:w-auto">
                 <Button
-                  size={"lg"}
-                  className="text-base px-8 h-12 gap-2 group transition-all"
+                  size="lg"
+                  className="group h-14 w-full rounded-2xl bg-gradient-to-r from-primary via-teal-500 to-emerald-500 px-8 text-base font-semibold text-primary-foreground shadow-[0_20px_50px_-20px_rgba(13,148,136,0.6)] transition hover:scale-[1.01] sm:w-auto"
                 >
-                  <Search size={18} />
-                  Browse Jobs
+                  <Search size={20} />
+                  Explore Jobs
                   <ArrowRight
-                    size={18}
-                    className="group-hover:translate-x-1 transition-transform"
+                    size={20}
+                    className="transition-transform group-hover:translate-x-1"
                   />
                 </Button>
               </Link>
-              <Link href={"/about"}>
+              <Link href="/about" className="w-full sm:w-auto">
                 <Button
-                  variant={"outline"}
-                  size={"lg"}
-                  className="text-base px-8 h-12 gap-2"
+                  variant="outline"
+                  size="lg"
+                  className="h-14 w-full rounded-2xl border-border/70 bg-card/60 px-8 text-base shadow-sm backdrop-blur sm:w-auto"
                 >
-                  <Briefcase size={18} />
-                  Learn More
+                  <Briefcase size={20} />
+                  How it Works
                 </Button>
               </Link>
             </div>
-            {/* trust indicator section  */}
 
-            <div className="flex items-center gap-2 text-sm opacity-60 pt-4">
-              <span>✅Free to use</span>
-              <span>ׄ🟢</span>
-              <span>✅verified employer</span>
-              <span>ׄ🟢</span>
-              <span>✅Secure platform</span>
-              <span>ׄ🟢</span>
+            <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              {[
+                { value: "12k+", label: "Live openings" },
+                { value: "1.8k+", label: "Hiring teams" },
+                { value: "92%", label: "Resume match accuracy" },
+              ].map((item) => (
+                <div key={item.label} className="glass-card rounded-3xl px-5 py-5">
+                  <p className="text-3xl font-bold text-foreground">{item.value}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{item.label}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* image section  */}
-          <div className="flex-1 relative">
-            <div className="relative group">
-              <div className="absolute -inset-4 bg-blue-400 opacity-20 blur-xl group-hover:opacity-30 transition-opacity"></div>
-              <div className="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-background">
-                <img src="/hero.png" className="object-cover object-center w-full h-full transform transition-transform duration-500 group-hover:scale-105" alt="" />
+          <div className="relative">
+            <div className="glass-card relative overflow-hidden rounded-[2rem] p-3">
+              <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-r from-primary/20 via-teal-400/20 to-amber-300/20" />
+              <div className="absolute right-6 top-6 z-10 flex items-center gap-2 rounded-full bg-background/80 px-3 py-2 text-xs font-medium shadow-sm">
+                <TrendingUp size={14} className="text-primary" />
+                Candidate activity is trending up
+              </div>
+
+              <div className="relative overflow-hidden rounded-[1.6rem] border border-white/50">
+                <Image
+                  src="/Hero.png"
+                  alt="Job portal dashboard preview"
+                  width={1200}
+                  height={1200}
+                  className="h-[540px] w-full object-cover object-center"
+                  priority
+                />
+              </div>
+
+              <div className="absolute -left-3 bottom-10 rounded-3xl border border-white/60 bg-background/90 p-4 shadow-xl backdrop-blur dark:border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600">
+                    <Star size={22} />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">Top Match Found</p>
+                    <p className="text-xs text-muted-foreground">
+                      Senior Product Designer at Nova Labs
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="absolute -right-4 top-28 w-60 rounded-3xl border border-white/60 bg-background/88 p-4 shadow-xl backdrop-blur dark:border-white/10">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold">Quick snapshot</p>
+                  <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                    Live
+                  </span>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Building2 size={16} />
+                    240+ verified employers
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPin size={16} />
+                    Remote, hybrid, and onsite filters
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Briefcase size={16} />
+                    AI resume and career guidance built in
+                  </div>
+                </div>
               </div>
             </div>
+
+            <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-amber-300/40 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-8 left-8 h-32 w-32 rounded-full bg-primary/30 blur-3xl" />
           </div>
         </div>
       </div>

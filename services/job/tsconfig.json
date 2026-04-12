@@ -9,6 +9,7 @@
     "strict": true,
     "allowImportingTsExtensions": false,
     "allowSyntheticDefaultImports": true,
-    "types": ["node"]
+    "types": ["node"],
+    "skipLibCheck": true
   }
 }

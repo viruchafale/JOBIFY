@@ -178,7 +178,7 @@ export const forgetPassword = TryCatch(async (req, res, next) => {
 
   const message = {
     to: email,
-    subject: "RESET Your Password - hireheaven",
+    subject: "RESET Your Password - JobiFy",
     html: forgotPasswordTemplate(resetLink),
   };
   publishToTopic("send-mail", message).catch((error) => {
@@ -196,6 +196,10 @@ export const resetPassword = TryCatch(async (req, res, next) => {
   const { password } = req.body;
 
   let decoded: any;
+
+  if (typeof token !== "string") {
+    throw new ErrorHandler(400, "Invalid token format");
+  }
 
   try {
     decoded = jwt.verify(token, process.env.SECRET_KEY as string)

@@ -8,6 +8,7 @@
     "esModuleInterop": true,
     "strict": true,
     "allowImportingTsExtensions": false,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
   }
 }

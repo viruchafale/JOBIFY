@@ -188,13 +188,11 @@ const RegisterPage = () => {
                           id="resume"
                           type="file"
                           accept="application/pdf"
-                          value={resume}
                           onChange={(e) => {
-                            if (e.target.value && e.target.files[0]) {
+                            if (e.target.files && e.target.files[0]) {
                               setResume(e.target.files[0])
                             }
                           }}
-
                           className="pl-10 h-11"
                         />
                       </div>

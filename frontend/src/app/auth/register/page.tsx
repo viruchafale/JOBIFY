@@ -1,22 +1,15 @@
 "use client";
 
-import { auth_service, useAppData } from "@/context/AppContext";
+import { useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
 import { redirect } from "next/navigation";
 import React, { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
-import Cookie from "js-cookie";
 import { Label } from "@/components/ui/label";
 import { ArrowRight, Briefcase, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ApiResponse, User } from "@/type";
-import axios from "axios";
 import Loading from "@/components/loading";
-// import type { AxiosError } from "axios";
-
-// const isAxiosError = (error: unknown): error is AxiosError => {
-//   return error instanceof Error && "response" in error;
-// };
 
 const RegisterPage = () => {
   const [name, setName] = useState("");
@@ -47,25 +40,17 @@ const RegisterPage = () => {
     if (role === "jobseeker") {
       formData.append("bio", bio);
       if (resume) {
-        formData.append("resume", resume);
+        formData.append("file", resume);
       }
     }
 
     try {
-      const { data } = await axios.post<ApiResponse<User>>(
-        `${auth_service}/api/auth/register`,
-        formData,
-      );
+      const data = await api.auth.register(formData);
       toast.success(data.message);
-      Cookie.set("token", data.token, {
-        expires: 15,
-        secure: false,
-        path: "/",
-      });
       setUser(data.user);
       setIsAuth(true);
-    } catch (error) {
-      toast.error(error);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Unable to register");
       setIsAuth(false);
     } finally {
       setBtnLoading(false);

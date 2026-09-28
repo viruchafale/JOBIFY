@@ -1,15 +1,8 @@
 "use client";
-import React, { useEffect, useState } from "react";
-
-import { ApiResponse, AppContextType, AppProviderProps, User } from "@/type";
-import { createContext, useContext } from "react";
+import React, { useEffect, useState, createContext, useContext } from "react";
+import type { AppContextType, AppProviderProps, User } from "@/type";
 import toast, { Toaster } from "react-hot-toast";
-export const utils_service = "http://51.20.37.105:5005";
-export const auth_service = "http://51.20.37.105:5002";
-export const user_service = "http://51.20.37.105:5006";
-export const job_service = "http://51.20.37.105:5007";
-import Cookies from "js-cookie";
-import axios from "axios";
+import { api } from "@/lib/api";
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -19,38 +12,34 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [btnLoading, setBtnLoading] = useState(false);
 
-  const token = Cookies.get("token");
   async function fetchUser() {
     try {
-      const { data } = await axios.get<User>(
-        `${user_service}/api/user/me`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
+      const data = await api.user.getMe();
       setUser(data);
       setIsAuth(true);
     } catch (error) {
-      console.log(error);
-      setIsAuth(false)
-    }finally{
-      setLoading(false)
+      setUser(null);
+      setIsAuth(false);
+    } finally {
+      setLoading(false);
     }
   }
 
-  async function logoutUser(){
-    Cookies.set("token","")
-    setUser(null)
-    setIsAuth(false)
-    toast.success("Logged out successfully ")
-
-
+  async function logoutUser() {
+    try {
+      await api.auth.logout();
+      setUser(null);
+      setIsAuth(false);
+      toast.success("Logged out successfully");
+    } catch (error) {
+      toast.error("Failed to log out");
+    }
   }
-  useEffect(()=>{
-    fetchUser()
-  },[])
+
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -61,7 +50,7 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
         setIsAuth,
         setUser,
         setLoading,
-        logoutUser
+        logoutUser,
       }}
     >
       {children}

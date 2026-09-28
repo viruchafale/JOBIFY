@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AccountProps, User } from "@/type";
-import { useAppData, user_service } from "@/context/AppContext";
+import { useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
 import {
   Briefcase,
   Camera,
@@ -13,8 +14,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import React, { ChangeEvent, useRef, useState } from "react";
-import Cookies from "js-cookie";
-import axios from "axios";
 import toast from "react-hot-toast";
 import Image from "next/image";
 
@@ -42,17 +41,7 @@ const Info: React.FC<AccountProps> = ({ user, isYourAccount }) => {
       formData.append("file", file);
 
       try {
-        const token = Cookies.get("token");
-        const { data } = await axios.put<{ message: string; updatedUser: User }>(
-          `${user_service}/api/user/update/pic`,
-          formData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "multipart/form-data",
-            },
-          }
-        );
+        const data = await api.user.updateProfilePic(formData);
         toast.success("Profile picture updated!");
         if (data.updatedUser && isYourAccount) {
           setUser((prev) => ({ ...prev, ...data.updatedUser } as User));

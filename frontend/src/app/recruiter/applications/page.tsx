@@ -1,14 +1,13 @@
 "use client";
 
-import { useAppData, job_service } from "@/context/AppContext";
+import { useAppData } from "@/context/AppContext";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import axios from "axios";
+import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Briefcase, Building, ChevronDown, ChevronUp, User, Trash2, Edit } from "lucide-react";
 import Link from "next/link";
-import Cookies from "js-cookie";
 import Loading from "@/components/loading";
 
 interface Application {
@@ -16,7 +15,7 @@ interface Application {
   job_id: number;
   applicant_email: string;
   resume: string;
-  status: "pending" | "accepted" | "rejected";
+  status: "Submitted" | "Rejected" | "Hired";
   applied_at: string;
 }
 
@@ -55,12 +54,8 @@ const RecruiterDashboardPage = () => {
   }, [isAuth, loading, user, router]);
 
   const fetchCompanies = async () => {
-    const token = Cookies.get("token");
     try {
-      const { data } = await axios.get<Company[]>(
-        `${job_service}/api/job/company/all`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const data = await api.companies.getAll();
       setCompanies(data);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to fetch companies");
@@ -70,14 +65,9 @@ const RecruiterDashboardPage = () => {
   };
 
   const fetchJobsForCompany = async (companyId: number) => {
-    const token = Cookies.get("token");
     try {
       setJobs([]);
-      const { data } = await axios.get<{ jobs: any[] }>(
-        `${job_service}/api/job/company/${companyId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      // data.jobs contains the array
+      const data = await api.companies.getDetails(companyId);
       const jobsList = data.jobs || [];
       const initialized = jobsList.map((j: any) => ({
         ...j,
@@ -97,16 +87,11 @@ const RecruiterDashboardPage = () => {
     const job = newJobs[idx];
 
     if (!job.expanded && job.applications.length === 0) {
-      // fetch applications
       job.loadingApps = true;
       setJobs([...newJobs]);
       try {
-        const token = Cookies.get("token");
-        const { data } = await axios.get<Application[]>(
-          `${job_service}/api/job/application/${jobId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        job.applications = data;
+        const data = await api.jobs.getApplications(jobId);
+        job.applications = data as any;
       } catch (error) {
         toast.error("Failed to load applications");
       }
@@ -119,12 +104,8 @@ const RecruiterDashboardPage = () => {
 
   const deleteCompany = async (companyId: number) => {
     if (!confirm("Are you sure you want to delete this company and all its jobs?")) return;
-    const token = Cookies.get("token");
     try {
-      await axios.delete(
-        `${job_service}/api/job/company/${companyId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.companies.delete(companyId);
       toast.success("Company deleted");
       setCompanies(companies.filter(c => c.company_id !== companyId));
       if (selectedCompanyId === companyId) {
@@ -136,18 +117,13 @@ const RecruiterDashboardPage = () => {
     }
   };
 
-  const updateAppStatus = async (appId: number, status: string, jobIdx: number, appIdx: number) => {
-    const token = Cookies.get("token");
+  const updateAppStatus = async (appId: number, status: "Submitted" | "Rejected" | "Hired", jobIdx: number, appIdx: number) => {
     try {
-      await axios.put(
-        `${job_service}/api/job/application/update/${appId}`,
-        { status },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await api.jobs.updateApplicationStatus(appId, status);
       toast.success(`Application marked as ${status}`);
       
       const newJobs = [...jobs];
-      newJobs[jobIdx].applications[appIdx].status = status as any;
+      newJobs[jobIdx].applications[appIdx].status = status;
       setJobs(newJobs);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update status");
@@ -260,11 +236,11 @@ const RecruiterDashboardPage = () => {
                                     <select 
                                       className="h-9 px-3 border border-border rounded-md text-sm bg-background"
                                       value={app.status}
-                                      onChange={(e) => updateAppStatus(app.application_id, e.target.value, jIdx, aIdx)}
+                                      onChange={(e) => updateAppStatus(app.application_id, e.target.value as "Submitted" | "Rejected" | "Hired", jIdx, aIdx)}
                                     >
-                                      <option value="pending">Pending</option>
-                                      <option value="accepted">Accept</option>
-                                      <option value="rejected">Reject</option>
+                                      <option value="Submitted">Submitted</option>
+                                      <option value="Hired">Hire</option>
+                                      <option value="Rejected">Reject</option>
                                     </select>
                                   </div>
                                 </div>

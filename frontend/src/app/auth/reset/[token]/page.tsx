@@ -1,12 +1,11 @@
 "use client";
 
-import { auth_service } from "@/context/AppContext";
+import { api } from "@/lib/api";
 import React, { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
 import { Label } from "@/components/ui/label";
 import { ArrowRight, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import axios from "axios";
 import { useRouter, useParams } from "next/navigation";
 
 const ResetPasswordPage = () => {
@@ -21,10 +20,7 @@ const ResetPasswordPage = () => {
     e.preventDefault();
     setBtnLoading(true);
     try {
-      const { data } = await axios.post<{message: string}>(
-        `${auth_service}/api/auth/reset/${token}`,
-        { password }
-      );
+      const data = await api.auth.resetPassword(token, password);
       toast.success(data.message);
       router.push("/auth/login");
     } catch (error: any) {

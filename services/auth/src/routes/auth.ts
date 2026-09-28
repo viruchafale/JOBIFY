@@ -1,13 +1,15 @@
 import express from "express";
-import { forgetPassword, loginUser, registerUser, resetPassword } from "../controllers/auth.js";
+import { forgetPassword, loginUser, logoutUser, registerUser, resetPassword } from "../controllers/auth.js";
 import uploadFile from "../middleware/multer.js";
+import { authRateLimits } from "../middleware/rateLimit.js";
 
 const router = express.Router();
 
-router.post("/register", uploadFile, registerUser);
-router.post("/login", loginUser);
-router.post("/forgot",forgetPassword)
-router.post("/reset/:token",resetPassword)
+router.post("/register", authRateLimits.register, uploadFile, registerUser);
+router.post("/login", authRateLimits.login, loginUser);
+router.post("/logout", logoutUser);
+router.post("/forgot", authRateLimits.forgot, forgetPassword)
+router.post("/reset/:token", authRateLimits.reset, resetPassword)
 
 
 

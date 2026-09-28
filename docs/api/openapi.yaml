@@ -1,0 +1,456 @@
+openapi: 3.0.3
+info:
+  title: Jobify 2.0 Unified API Gateway
+  description: Unified API specification for Jobify 2.0 microservices routed via API Gateway BFF.
+  version: 2.0.0
+servers:
+  - url: http://localhost:5000
+    description: Local API Gateway
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      responses:
+        '200':
+          description: Gateway is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: gateway-service
+                  timestamp:
+                    type: string
+
+  /ready:
+    get:
+      summary: Readiness check
+      responses:
+        '200':
+          description: Gateway dependencies are reachable
+        '503':
+          description: Service unavailable
+
+  /api/auth/register:
+    post:
+      summary: Register a new jobseeker or recruiter
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, email, password, phone_number, role]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                phone_number:
+                  type: string
+                role:
+                  type: string
+                  enum: [jobseeker, recruiter]
+                bio:
+                  type: string
+                skills:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Registered successfully
+        '400':
+          description: Validation error
+
+  /api/auth/login:
+    post:
+      summary: Authenticate user and create Redis session cookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful, sets HttpOnly token cookie
+        '401':
+          description: Invalid credentials
+
+  /api/auth/logout:
+    post:
+      summary: Clear session and authentication cookie
+      responses:
+        '200':
+          description: Logged out successfully
+
+  /api/auth/forgot:
+    post:
+      summary: Send password reset email token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+      responses:
+        '200':
+          description: Reset email dispatched
+
+  /api/auth/reset/{token}:
+    post:
+      summary: Reset password with token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Password reset successfully
+
+  /api/user/me:
+    get:
+      summary: Get current authenticated user profile
+      responses:
+        '200':
+          description: Current user profile
+        '401':
+          description: Unauthorized
+
+  /api/user/{id}:
+    get:
+      summary: Get user profile by user ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User profile
+        '404':
+          description: User not found
+
+  /api/user/update/profile:
+    put:
+      summary: Update user profile text fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Profile updated
+
+  /api/user/update/pic:
+    put:
+      summary: Upload new profile picture
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Profile picture updated
+
+  /api/user/update/resume:
+    put:
+      summary: Upload new resume PDF
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Resume updated
+
+  /api/user/skill/add:
+    post:
+      summary: Add skill to profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skillName]
+              properties:
+                skillName:
+                  type: string
+      responses:
+        '200':
+          description: Skill added
+
+  /api/user/skill/delete:
+    delete:
+      summary: Remove skill from profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skillName]
+              properties:
+                skillName:
+                  type: string
+      responses:
+        '200':
+          description: Skill deleted
+
+  /api/user/application/all:
+    get:
+      summary: Get all job applications for current authenticated applicant
+      responses:
+        '200':
+          description: List of applications
+
+  /api/job/all:
+    get:
+      summary: List all active jobs with optional title/location filters
+      parameters:
+        - name: title
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Array of jobs
+
+  /api/job/{jobId}:
+    get:
+      summary: Get job details by job ID
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Job and company details
+
+  /api/job/new:
+    post:
+      summary: Create new job posting (Recruiter only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, salary, location, job_type, role, work_location, company_id, openings]
+      responses:
+        '201':
+          description: Job created
+
+  /api/job/update/{jobId}:
+    put:
+      summary: Update job posting (Company recruiter owner only)
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Job updated
+
+  /api/job/apply/{jobId}:
+    post:
+      summary: Apply to a job posting (Jobseeker only)
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+          application/json:
+            schema:
+              type: object
+              properties:
+                resume:
+                  type: string
+      responses:
+        '201':
+          description: Application submitted
+
+  /api/job/application/{jobId}:
+    get:
+      summary: View applications for a job (Recruiter owner only)
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of applications for job
+
+  /api/job/application/update/{applicationId}:
+    put:
+      summary: Update application status (Recruiter owner only)
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [Submitted, Rejected, Hired]
+      responses:
+        '200':
+          description: Status updated
+
+  /api/job/company/all:
+    get:
+      summary: List all companies created by authenticated recruiter
+      responses:
+        '200':
+          description: List of recruiter's companies
+
+  /api/job/company/{companyId}:
+    get:
+      summary: Get company details and its job listings
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Company details
+
+    delete:
+      summary: Delete company (Recruiter owner only)
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Company deleted
+
+  /api/job/company/new:
+    post:
+      summary: Create new company (Recruiter only)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, description, website, file]
+      responses:
+        '201':
+          description: Company created
+
+  /api/utils/career:
+    post:
+      summary: AI Career guidance suggestions based on skills
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [skills]
+              properties:
+                skills:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: AI suggestions
+
+  /api/utils/resume-analyzer:
+    post:
+      summary: AI ATS Resume analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pdfBase64]
+              properties:
+                pdfBase64:
+                  type: string
+      responses:
+        '200':
+          description: ATS Score & analysis

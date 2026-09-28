@@ -1,15 +1,14 @@
 "use client";
 
-import { useAppData, user_service } from "@/context/AppContext";
+import { useAppData } from "@/context/AppContext";
 import React, { FormEvent, useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import axios from "axios";
+import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, User, Phone, FileText, Upload, Plus, X } from "lucide-react";
 import Link from "next/link";
-import Cookies from "js-cookie";
 
 const EditProfilePage = () => {
   const { user, isAuth, loading, setUser } = useAppData();
@@ -44,13 +43,8 @@ const EditProfilePage = () => {
   const submitHandler = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setBtnLoading(true);
-    const token = Cookies.get("token");
     try {
-      const { data } = await axios.put<{ message: string; updatedUser: any }>(
-        `${user_service}/api/user/update/profile`,
-        { name, phone_number: phoneNumber, bio },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const data = await api.user.updateProfile({ name, phone_number: phoneNumber, bio });
       toast.success(data.message || "Profile updated successfully!");
       if (data.updatedUser) {
         setUser({ ...user, ...data.updatedUser } as any);
@@ -65,15 +59,10 @@ const EditProfilePage = () => {
   const uploadPic = async () => {
     if (!picFile) return toast.error("Please select an image");
     setPicLoading(true);
-    const token = Cookies.get("token");
     const formData = new FormData();
     formData.append("file", picFile);
     try {
-      const { data } = await axios.put<{ message: string; updatedUser: any }>(
-        `${user_service}/api/user/update/pic`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
-      );
+      const data = await api.user.updateProfilePic(formData);
       toast.success("Profile picture updated!");
       if (data.updatedUser) setUser({ ...user, ...data.updatedUser } as any);
     } catch (error: any) {
@@ -87,15 +76,10 @@ const EditProfilePage = () => {
   const uploadResume = async () => {
     if (!resumeFile) return toast.error("Please select a file");
     setResumeLoading(true);
-    const token = Cookies.get("token");
     const formData = new FormData();
     formData.append("file", resumeFile);
     try {
-      const { data } = await axios.put<{ message: string; updatedUser: any }>(
-        `${user_service}/api/user/update/resume`,
-        formData,
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" } }
-      );
+      const data = await api.user.updateResume(formData);
       toast.success("Resume updated!");
       if (data.updatedUser) setUser({ ...user, ...data.updatedUser } as any);
     } catch (error: any) {
@@ -108,13 +92,8 @@ const EditProfilePage = () => {
 
   const addSkill = async () => {
     if (!skillName.trim()) return;
-    const token = Cookies.get("token");
     try {
-      const { data } = await axios.post<{ message: string }>(
-        `${user_service}/api/user/skill/add`,
-        { skillName },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const data = await api.user.addSkill(skillName.trim());
       toast.success(data.message || "Skill added!");
       setSkills(prev => [...prev, skillName.trim()]);
       setSkillName("");
@@ -124,15 +103,8 @@ const EditProfilePage = () => {
   };
 
   const deleteSkill = async (sName: string) => {
-    const token = Cookies.get("token");
     try {
-      const { data } = await axios.delete<{ message: string }>(
-        `${user_service}/api/user/skill/delete`,
-        { 
-          data: { skillName: sName },
-          headers: { Authorization: `Bearer ${token}` } 
-        }
-      );
+      const data = await api.user.deleteSkill(sName);
       toast.success(data.message || "Skill deleted!");
       setSkills(prev => prev.filter(s => s !== sName));
     } catch (error: any) {

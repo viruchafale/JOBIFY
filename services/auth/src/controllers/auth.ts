@@ -7,7 +7,9 @@ import axios from "axios";
 import jwt from "jsonwebtoken";
 import { forgotPasswordTemplate } from "../template.js";
 import { publishToTopic } from "../producer.js";
-import { redisClient } from "../index.js";
+import { redisClient } from "../utils/redis.js";
+import { createSession, revokeSession, setSessionCookie } from "../utils/session.js";
+import { assertPdf } from "../utils/uploadValidation.js";
 
 export const registerUser = TryCatch(async (req, res, next) => {
   console.log("login called", req.body);
@@ -18,6 +20,7 @@ export const registerUser = TryCatch(async (req, res, next) => {
   if (!name || !email || !password || !phoneNumber || !role) {
     throw new ErrorHandler(400, "Please fill all the details");
   }
+  if (role !== "jobseeker" && role !== "recruiter") throw new ErrorHandler(400, "Invalid role");
 
   const existingUsers =
     await sql`SELECT user_id FROM users WHERE email=${email}`;
@@ -46,6 +49,7 @@ export const registerUser = TryCatch(async (req, res, next) => {
     if (!file) {
       throw new ErrorHandler(400, "Resume file is required");
     }
+    assertPdf(file);
 
     const fileBuffer = getBuffer(file);
     if (!fileBuffer || !fileBuffer.content) {
@@ -65,6 +69,7 @@ export const registerUser = TryCatch(async (req, res, next) => {
         {
           headers: {
             "Content-Type": "application/json",
+            "x-internal-service-key": process.env.INTERNAL_SERVICE_KEY,
           },
         },
       );
@@ -94,17 +99,11 @@ export const registerUser = TryCatch(async (req, res, next) => {
 
     registeredUser = user;
   }
-  const token = jwt.sign(
-    { id: registeredUser?.user_id },
-    process.env.SECRET_KEY as string,
-    {
-      expiresIn: "15d",
-    },
-  );
+  const token = await createSession(registeredUser!.user_id);
+  setSessionCookie(res, token);
   res.status(201).json({
     message: "User registered successfully",
     user: registeredUser,
-    token,
   });
 });
 
@@ -136,18 +135,23 @@ export const loginUser = TryCatch(async (req, res, next) => {
   // This where we delete the password from the user object before sending response
   delete userObject.password;
 
-  const token = jwt.sign(
-    { id: userObject?.user_id },
-    process.env.SECRET_KEY as string,
-    {
-      expiresIn: "15d",
-    },
-  );
+  const token = await createSession(userObject.user_id);
+  setSessionCookie(res, token);
   res.status(201).json({
     message: "Logged in successfully",
     user: userObject,
-    token,
   });
+});
+
+export const logoutUser = TryCatch(async (req, res) => {
+  await revokeSession(req.cookies?.jobify_session);
+  res.clearCookie("jobify_session", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
+  res.json({ message: "Logged out successfully" });
 });
 
 export const forgetPassword = TryCatch(async (req, res, next) => {
@@ -172,7 +176,7 @@ export const forgetPassword = TryCatch(async (req, res, next) => {
     process.env.SECRET_KEY as string,
     { expiresIn: "15m" },
   );
-  const resetLink = `${process.env.FRONTEND_URL}/reset/${resetToken}`;
+  const resetLink = `${process.env.FRONTEND_URL}/auth/reset/${resetToken}`;
 
   await redisClient.set(`forgot:${email}`, resetToken, { EX: 900 })
 

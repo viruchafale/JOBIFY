@@ -6,6 +6,7 @@ import ErrorHandler from "../utils/errorHandler.js";
 import { TryCatch } from "../utils/TryCatch.js";
 import axios from "axios";
 import { application } from "express";
+import { assertImage, assertPdf } from "../utils/uploadValidation.js";
 
 export const myProfile = TryCatch(
   async (req: AuthenticatedRequest, res, next) => {
@@ -82,6 +83,7 @@ export const updateProfilePic = TryCatch(
     if (!file) {
       throw new ErrorHandler(400, "No Image File provided");
     }
+    assertImage(file);
     const oldPublicId = user.profile_pic_public_id;
     const fileBuffer = getBuffer(file);
 
@@ -94,7 +96,7 @@ export const updateProfilePic = TryCatch(
     }>(`${process.env.UPLOAD_SERVICE}/api/utils/upload`, {
       buffer: fileBuffer.content,
       public_id: oldPublicId,
-    });
+    }, { headers: { "x-internal-service-key": process.env.INTERNAL_SERVICE_KEY } });
 
     const [updatedUser] = await sql`
     UPDATE users SET profile_pic =${uploadResult.url},profile_pic_public_id=${uploadResult.public_id} WHERE user_id =${user.user_id} RETURNING user_id ,name ,profile_pic;
@@ -118,6 +120,7 @@ export const updateResume = TryCatch(async (req: AuthenticatedRequest, res) => {
   if (!file) {
     throw new ErrorHandler(400, "No Image File provided");
   }
+  assertPdf(file);
   const oldPublicId = user.resume_public_id;
   const fileBuffer = getBuffer(file);
 
@@ -127,10 +130,10 @@ export const updateResume = TryCatch(async (req: AuthenticatedRequest, res) => {
   const { data: uploadResult } = await axios.post<{
     url: string;
     public_id: string;
-  }>(`${process.env.UPLOAD_SERVICE}/api/utils/upload`, {
-    buffer: fileBuffer.content,
-    public_id: oldPublicId,
-  });
+    }>(`${process.env.UPLOAD_SERVICE}/api/utils/upload`, {
+      buffer: fileBuffer.content,
+      public_id: oldPublicId,
+    }, { headers: { "x-internal-service-key": process.env.INTERNAL_SERVICE_KEY } });
 
   const [updatedUser] = await sql`
     UPDATE users SET resume =${uploadResult.url},resume_public_id=${uploadResult.public_id} WHERE user_id =${user.user_id} RETURNING user_id ,name ,resume;
@@ -215,78 +218,23 @@ export const deleteSkillFromUser = TryCatch(
   },
 );
 
-export const applyForJob = TryCatch(async (req: AuthenticatedRequest, res) => {
-  const user = req.user;
-
-  if (!user) {
-    throw new ErrorHandler(401, "Authentication required");
-  }
-
-  if (user.role !== "jobseeker") {
-    throw new ErrorHandler(403, "Forbidden you are not allowed for this api");
-  }
-
-  const applicant_id = user.user_id;
-
-  const resume = user.resume;
-  if (!resume) {
-    throw new ErrorHandler(
-      400,
-      "You need to add resume in your profile too apply for the job ",
-    );
-  }
-
-  const { job_id } = req.body;
-  if (!job_id) {
-    throw new ErrorHandler(400, "job id is required");
-  }
-
-  const [job] = await sql`
-  SELECT is_active FROM jobs WHERE job_id=${job_id}
-  `;
-
-  if (!job) {
-    throw new ErrorHandler(404, "No jobs with this id");
-  }
-
-  if (!job.is_active) {
-    throw new ErrorHandler(400, "Job is not active");
-  }
-
-  const now = Date.now();
-
-  const subTime = req.user?.subscription
-    ? new Date(req.user.subscription).getTime()
-    : 0;
-
-  const isSubscribed = subTime > now;
-
-  let newApplication;
-  try {
-    [newApplication] =
-      await sql`INSERT INTO applications (job_id,application_id,applicant_email,resume,subscribed) VALUES(${job_id},${applicant_id},${user?.email},${resume},${isSubscribed})`;
-  } catch (error: any) {
-    if (error.code === "23505") {
-      throw new ErrorHandler(409, "you have already applied to job");
-    }
-
-    throw error;
-  }
-
-  res.json({
-    message:"Applied for the job successfully",
-    application:newApplication
-  })
-});
+export const applyForJob = (_req: AuthenticatedRequest, res: any) => {
+  res.status(410).json({
+    message: "This application endpoint has been retired. Use POST /api/job/apply/:jobId.",
+  });
+};
 
 
 
 export const getAllApplications=TryCatch(async(req:AuthenticatedRequest,res)=>{
-  // console.log(req.user?.user_id)
+  if (!req.user || req.user.role !== "jobseeker") {
+    throw new ErrorHandler(403, "Only jobseekers can access their applications");
+  }
   const application =await sql ` 
-   SELECT a.*,j.title AS job_title ,j.salary AS job_salary,j.location AS job_location FROM applications a JOIN jobs j ON a.job_id =j.job_id WHERE a.application_id =${req.user?.user_id}
+   SELECT a.application_id,a.job_id,a.status,a.applied_at,j.title AS job_title,j.salary AS job_salary,j.location AS job_location
+   FROM applications a JOIN jobs j ON a.job_id =j.job_id
+   WHERE a.applicant_user_id =${req.user.user_id}
+   ORDER BY a.applied_at DESC
   `
-  // console.log(req.user?.user_id)
-
   res.json(application) 
 })

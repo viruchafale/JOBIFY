@@ -1,14 +1,12 @@
-import { stripTypeScriptTypes } from "module";
 import { AuthenticatedRequest } from "../middleware/auth.js";
 import getBuffer from "../utils/buffer.js";
 import { sql } from "../utils/db.js";
 import ErrorHandler from "../utils/errorHandler.js";
 import { TryCatch } from "../utils/TryCatch.js";
 import axios from "axios";
-import { transcode } from "buffer";
 import { applicationStatusUpdateTemplate, applyToJobTemplate } from "../template.js";
 import { publishToTopic } from "../producer.js";
-import { error } from "console";
+import { assertImage, assertPdf } from "../utils/uploadValidation.js";
 
 export const createCompany = TryCatch(
   async (req: AuthenticatedRequest, res) => {
@@ -45,6 +43,7 @@ export const createCompany = TryCatch(
     if (!file) {
       throw new ErrorHandler(400, "Company Logo file is required");
     }
+    assertImage(file);
 
     const fileBuffer = getBuffer(file);
 
@@ -62,6 +61,7 @@ export const createCompany = TryCatch(
       const response = await axios.post(
         `${process.env.UPLOAD_SERVICE}/api/utils/upload`,
         { buffer: fileBuffer.content },
+        { headers: { "x-internal-service-key": process.env.INTERNAL_SERVICE_KEY } },
       );
       data = response.data as UploadResponse;
     } catch (error: any) {
@@ -354,7 +354,20 @@ export const updateApplication=TryCatch(async (req:AuthenticatedRequest,res)=>{
       throw new ErrorHandler(404,"Forbidden youj are not alloe]wed")
     }
 
-    const [updatedApplication]=await sql`UPDATE applications SET status =${req.body.status} WHERE application_id =${id} RETURNING *`
+    const allowedTransitions: Record<string, string[]> = {
+      Submitted: ["Rejected", "Hired"],
+      Rejected: [],
+      Hired: [],
+    };
+    const nextStatus = req.body.status;
+    if (typeof nextStatus !== "string" || !["Submitted", "Rejected", "Hired"].includes(nextStatus)) {
+      throw new ErrorHandler(400, "Invalid application status");
+    }
+    if (!allowedTransitions[application.status]?.includes(nextStatus)) {
+      throw new ErrorHandler(409, "Invalid application status transition");
+    }
+
+    const [updatedApplication]=await sql`UPDATE applications SET status =${nextStatus} WHERE application_id =${id} RETURNING *`
 
     const message={
       to:application.applicant_email,
@@ -392,7 +405,7 @@ export const applyJob = TryCatch(async (req: AuthenticatedRequest, res) => {
     throw new ErrorHandler(404, "Job not found or is no longer active");
   }
 
-  const [existingApplication] = await sql`SELECT * FROM applications WHERE job_id=${jobId} AND applicant_email=${user.email}`;
+  const [existingApplication] = await sql`SELECT application_id FROM applications WHERE job_id=${jobId} AND applicant_user_id=${user.user_id}`;
 
   if (existingApplication) {
     throw new ErrorHandler(409, "You have already applied for this job");
@@ -409,14 +422,16 @@ export const applyJob = TryCatch(async (req: AuthenticatedRequest, res) => {
     // If not in body or user profile, maybe a file was uploaded?
     const file = req.file;
     if (file) {
+      assertPdf(file);
       const fileBuffer = getBuffer(file);
       if (!fileBuffer || !fileBuffer.content) {
         throw new ErrorHandler(500, "Failed to create file buffer");
       }
       try {
-        const response = await axios.post(
-          `${process.env.UPLOAD_SERVICE}/api/utils/upload`,
-          { buffer: fileBuffer.content },
+      const response = await axios.post(
+        `${process.env.UPLOAD_SERVICE}/api/utils/upload`,
+        { buffer: fileBuffer.content },
+        { headers: { "x-internal-service-key": process.env.INTERNAL_SERVICE_KEY } },
         );
         resumeUrl = response.data.url;
       } catch (error: any) {
@@ -431,8 +446,8 @@ export const applyJob = TryCatch(async (req: AuthenticatedRequest, res) => {
   }
 
   const [newApplication] = await sql`
-    INSERT INTO applications (job_id, applicant_email, resume) 
-    VALUES (${jobId}, ${user.email}, ${resumeUrl}) 
+    INSERT INTO applications (job_id, applicant_user_id, applicant_email, resume) 
+    VALUES (${jobId}, ${user.user_id}, ${user.email}, ${resumeUrl}) 
     RETURNING *
   `;
 

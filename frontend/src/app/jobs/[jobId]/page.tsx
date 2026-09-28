@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { job_service, useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
+import { useAppData } from "@/context/AppContext";
 import { Job } from "@/type";
 import Loading from "@/components/loading";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { MapPin, Briefcase, DollarSign, Calendar, Users, Building, ArrowLeft } from "lucide-react";
 import toast from "react-hot-toast";
-import Cookies from "js-cookie";
 import Link from "next/link";
 
 export default function JobDetailsPage() {
@@ -23,8 +22,8 @@ export default function JobDetailsPage() {
   useEffect(() => {
     const fetchJobDetails = async () => {
       try {
-        const { data } = await axios.get<Job>(`${job_service}/api/job/${jobId}`);
-        setJob(data);
+        const data = await api.jobs.getById(jobId as string);
+        setJob(data as any);
       } catch (error) {
         toast.error("Failed to fetch job details");
         console.error(error);
@@ -50,18 +49,8 @@ export default function JobDetailsPage() {
     }
 
     setApplyLoading(true);
-    const token = Cookies.get("token");
-
     try {
-      const { data } = await axios.post<{ message: string; }>(
-        `${job_service}/api/job/apply/${jobId}`,
-        {}, // passing empty object as body since we will rely on user profile resume
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const data = await api.jobs.apply(jobId as string);
       toast.success(data.message || "Applied successfully!");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to apply");

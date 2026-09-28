@@ -1,9 +1,11 @@
 import express, { json } from "express";
 import { v2 as cloudinary } from "cloudinary"; // ✅ Use v2
+import { requireInternalService, requireSession } from "./middleware/auth.js";
+import { careerLimit, resumeDailyLimit, resumeHourlyLimit } from "./middleware/rateLimit.js";
 
 const router = express.Router();
 
-router.post("/upload", async (req, res) => {
+router.post("/upload", requireInternalService, async (req, res) => {
   try {
     console.log("Upload request received:", req.body);
     const { buffer, public_id } = req.body;
@@ -38,7 +40,7 @@ dotenv.config();
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY_GEMINI });
 
-router.post("/career", async (req, res) => {
+router.post("/career", requireSession, careerLimit, async (req, res) => {
   try {
     const { skills } = req.body;
     if (!skills) {
@@ -113,7 +115,7 @@ router.post("/career", async (req, res) => {
   }
 });
 
-router.post("/resume-analyzer", async (req, res) => {
+router.post("/resume-analyzer", requireSession, resumeHourlyLimit, resumeDailyLimit, async (req, res) => {
   try {
     const { pdfBase64 } = req.body;
 
@@ -121,6 +123,10 @@ router.post("/resume-analyzer", async (req, res) => {
       return res.status(400).json({
         message: "PDF data is required",
       });
+    }
+    const encodedPdf = pdfBase64.replace(/^data:application\/pdf;base64,/, "");
+    if (!pdfBase64.startsWith("data:application/pdf;base64,") || Buffer.byteLength(encodedPdf, "base64") > 5 * 1024 * 1024 || Buffer.from(encodedPdf, "base64").subarray(0, 5).toString() !== "%PDF-") {
+      return res.status(400).json({ message: "A valid PDF no larger than 5 MB is required" });
     }
 
     const prompt = `
@@ -188,7 +194,7 @@ router.post("/resume-analyzer", async (req, res) => {
             {
               inlineData: {
                 mimeType: "application/pdf",
-                data: pdfBase64.replace(/^data:application\/pdf;base64,/, ""),
+                data: encodedPdf,
               },
             },
           ],

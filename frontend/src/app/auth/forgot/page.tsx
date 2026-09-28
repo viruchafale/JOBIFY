@@ -1,12 +1,11 @@
 "use client";
 
-import { auth_service } from "@/context/AppContext";
+import { api } from "@/lib/api";
 import React, { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
 import { Label } from "@/components/ui/label";
 import { ArrowRight, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import axios from "axios";
 import Link from "next/link";
 
 const ForgotPasswordPage = () => {
@@ -17,10 +16,7 @@ const ForgotPasswordPage = () => {
     e.preventDefault();
     setBtnLoading(true);
     try {
-      const { data } = await axios.post<{message: string}>(
-        `${auth_service}/api/auth/forgot`,
-        { email }
-      );
+      const data = await api.auth.forgotPassword(email);
       toast.success(data.message);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to send reset link");

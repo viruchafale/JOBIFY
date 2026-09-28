@@ -1,20 +1,19 @@
 "use client";
 
-import { useAppData, user_service, job_service } from "@/context/AppContext";
+import { useAppData } from "@/context/AppContext";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import axios from "axios";
+import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Briefcase, Calendar, CheckCircle, Clock, XCircle } from "lucide-react";
 import Link from "next/link";
-import Cookies from "js-cookie";
 import Loading from "@/components/loading";
 
 interface Application {
   application_id: number;
   job_id: number;
-  status: "pending" | "accepted" | "rejected";
+  status: "Submitted" | "Rejected" | "Hired";
   applied_at: string;
 }
 
@@ -37,13 +36,9 @@ const MyApplicationsPage = () => {
   }, [isAuth, loading, user, router]);
 
   const fetchApplications = async () => {
-    const token = Cookies.get("token");
     try {
-      const { data } = await axios.get<Application[]>(
-        `${user_service}/api/user/application/all`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setApplications(data);
+      const data = await api.user.getMyApplications();
+      setApplications(data as any);
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to fetch applications");
     } finally {
@@ -96,17 +91,17 @@ const MyApplicationsPage = () => {
                     </div>
                   </div>
                   <div className="flex items-center">
-                    {app.status === "pending" && (
+                    {app.status === "Submitted" && (
                       <span className="flex items-center gap-1.5 bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 px-3 py-1.5 rounded-full text-xs font-semibold">
-                        <Clock size={14} /> Pending
+                        <Clock size={14} /> Submitted
                       </span>
                     )}
-                    {app.status === "accepted" && (
+                    {app.status === "Hired" && (
                       <span className="flex items-center gap-1.5 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 px-3 py-1.5 rounded-full text-xs font-semibold">
-                        <CheckCircle size={14} /> Accepted
+                        <CheckCircle size={14} /> Hired
                       </span>
                     )}
-                    {app.status === "rejected" && (
+                    {app.status === "Rejected" && (
                       <span className="flex items-center gap-1.5 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-3 py-1.5 rounded-full text-xs font-semibold">
                         <XCircle size={14} /> Rejected
                       </span>

@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { job_service, useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
+import { useAppData } from "@/context/AppContext";
 import { Company, Job } from "@/type";
 import Loading from "@/components/loading";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
-import Cookies from "js-cookie";
 
 export default function EditJobPage() {
   const { isAuth, user, loading } = useAppData();
@@ -41,16 +40,13 @@ export default function EditJobPage() {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const token = Cookies.get("token");
         // Fetch companies
-        const compRes = await axios.get<Company[]>(`${job_service}/api/job/company/all`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setCompanies(compRes.data);
+        const compData = await api.companies.getAll();
+        setCompanies(compData);
 
         // Fetch job
-        const jobRes = await axios.get<Job>(`${job_service}/api/job/${jobId}`);
-        const job = jobRes.data;
+        const jobData = await api.jobs.getById(jobId as string);
+        const job = jobData as any;
         
         setFormData({
           title: job.title,
@@ -60,7 +56,7 @@ export default function EditJobPage() {
           role: job.role,
           job_type: job.job_type,
           work_location: job.work_location,
-          company_id: job.company_id.toString(),
+          company_id: job.company_id ? job.company_id.toString() : "",
           openings: job.openings ? job.openings.toString() : "1",
         });
       } catch (error: any) {
@@ -88,23 +84,16 @@ export default function EditJobPage() {
 
     setSubmitLoading(true);
     try {
-      const token = Cookies.get("token");
-      await axios.put(
-        `${job_service}/api/job/update/${jobId}`,
-        {
-          ...formData,
-          salary: Number(formData.salary),
-          openings: Number(formData.openings),
-          company_id: Number(formData.company_id)
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await api.jobs.update(jobId as string, {
+        ...formData,
+        salary: Number(formData.salary) as any,
+        openings: Number(formData.openings) as any,
+        company_id: Number(formData.company_id),
+        job_type: formData.job_type as any,
+        work_location: formData.work_location as any,
+      });
       toast.success("Job updated successfully!");
-      router.push("/recruiter/applications");
+      router.push("/jobs");
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Failed to update job");
     } finally {

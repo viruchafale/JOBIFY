@@ -1,66 +1,44 @@
 import app from "./app.js";
 import dotenv from "dotenv";
-import { sql } from "./utils/db.js";
-import { createClient } from "redis";
+import { connectRedis, redisClient } from "./utils/redis.js";
+import { disconnectKafka } from "./producer.js";
+
 dotenv.config();
+const PORT = process.env.PORT || 5002;
 
-export const redisClient = createClient({
-  url: process.env.REDIS_URL,
-});
-redisClient
-  .connect()
-  .then(() => console.log("✅ connected to redis"))
-  .catch(console.error);
-const PORT = process.env.PORT || 5001;
-console.log(`PORT from env: ${process.env.PORT}, using: ${PORT}`);
+let server: any;
 
-async function initDb() {
-  await sql`
-    DO $$ 
-    BEGIN 
-      IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname ='user_role') THEN
-        CREATE TYPE user_role AS ENUM ('jobseeker', 'recruiter');
-      END IF;
-    END$$`;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS users (
-      user_id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255) NOT NULL UNIQUE,
-      password VARCHAR(255) NOT NULL,
-      phone_number VARCHAR(20) NOT NULL,
-      role user_role NOT NULL,
-      bio TEXT,
-      resume VARCHAR(255),
-      resume_public_id VARCHAR(255),
-      profile_pic VARCHAR(255),
-      profile_pic_public_id VARCHAR(255),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      subscription TIMESTAMPTZ
-    )`;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS skills (
-      skill_id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL UNIQUE
-    )`;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS user_skills (
-      user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-      skill_id INTEGER REFERENCES skills(skill_id) ON DELETE CASCADE,
-      PRIMARY KEY (user_id, skill_id)
-    )`;
-}
-
-initDb()
+connectRedis()
   .then(() => {
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       console.log(`🔥 Auth service running on port ${PORT}`);
     });
   })
   .catch((err) => {
-    console.error("❌ DB init failed", err);
+    console.error("❌ Auth service startup failed", err);
     process.exit(1);
   });
+
+async function gracefulShutdown(signal: string) {
+  console.log(`Received ${signal}, shutting down auth service gracefully...`);
+  if (server) {
+    server.close(() => {
+      console.log("HTTP server closed.");
+    });
+  }
+  try {
+    if (redisClient.isOpen) {
+      await redisClient.quit();
+      console.log("Redis client disconnected.");
+    }
+    await disconnectKafka();
+    console.log("Kafka disconnected.");
+  } catch (err) {
+    console.error("Error during graceful shutdown:", err);
+  } finally {
+    process.exit(0);
+  }
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));

@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { job_service, useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
+import { useAppData } from "@/context/AppContext";
 import Loading from "@/components/loading";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
-import Cookies from "js-cookie";
 import { Upload } from "lucide-react";
 
 export default function CreateCompanyPage() {
@@ -48,17 +47,7 @@ export default function CreateCompanyPage() {
     data.append("file", logo); // backend expects 'file' for logo
 
     try {
-      const token = Cookies.get("token");
-      await axios.post(
-        `${job_service}/api/job/company/new`,
-        data,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      await api.companies.create(data);
       toast.success("Company created successfully!");
       // Send them back to post job page or company listing
       router.push("/recruiter/jobs/new");

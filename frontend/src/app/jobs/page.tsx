@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { job_service, useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
+import { useAppData } from "@/context/AppContext";
 import { Job } from "@/type";
 import Loading from "@/components/loading";
 import Link from "next/link";
@@ -25,11 +25,9 @@ export default function JobsPage() {
   const fetchJobs = async () => {
     setLoadingJobs(true);
     try {
-      const { data } = await axios.get<Job[]>(`${job_service}/api/job/all`, {
-        params: {
-          title: searchTitle,
-          location: searchLocation,
-        },
+      const data = await api.jobs.getAll({
+        title: searchTitle,
+        location: searchLocation,
       });
       setJobs(data);
     } catch (error) {

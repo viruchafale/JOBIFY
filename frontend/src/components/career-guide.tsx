@@ -24,8 +24,7 @@ import {
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Input } from "./ui/input";
-import axios from "axios";
-import { utils_service } from "@/context/AppContext";
+import { api } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const CareerGuide = () => {
@@ -56,13 +55,8 @@ const CareerGuide = () => {
     }
     setLoading(true);
     try {
-      const { data } = await axios.post<CareerGuideResponse>(
-        `${utils_service}/api/utils/career`,
-        {
-          skills: skills,
-        },
-      );
-      setResponse(data);
+      const data = await api.utils.careerGuide(skills);
+      setResponse(data as any);
       toast.success("Career guidance generated");
     } catch (error) {
       console.log("Failed to get career guidance ", error);

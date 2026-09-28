@@ -20,11 +20,10 @@ import {
   FileCheck,
   Zap,
 } from "lucide-react";
-import axios from "axios";
 import { ResumeAnalysisResponse } from "@/type";
-import { utils_service } from "@/context/AppContext";
+import { api } from "@/lib/api";
 import toast from "react-hot-toast";
-// import toast from "react-hot-toast";
+
 const ResumeAnalyzer = () => {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -64,31 +63,12 @@ const ResumeAnalyzer = () => {
     setLoading(true);
     try {
       const base64 = await convertToBase64(file);
-      const { data } = await axios.post<ResumeAnalysisResponse>(
-        `${utils_service}/api/utils/resume-analyzer`,
-        {
-          pdfBase64: base64,
-        },
-      );
-      setResponse(data);
+      const data = await api.utils.resumeAnalyzer(base64);
+      setResponse(data as any);
       toast.success("Resume analyzed successfully!");
-      // alert("Resume analyzed successfully!");
-    } catch (error: unknown) {
-      // toast.error(error.response?.data?.message || "Failed to analyze resume");
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "response" in error &&
-        typeof (error as { response?: { data?: { message?: string } } }).response === "object"
-      ) {
-        alert(
-          ((error as { response?: { data?: { message?: string } } }).response?.data?.message) ||
-            "Failed to analyze resume"
-        );
-      } else {
-        alert("Failed to analyze resume");
-      }
-      console.log(error);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to analyze resume");
+      console.error(error);
     } finally {
       setLoading(false);
     }

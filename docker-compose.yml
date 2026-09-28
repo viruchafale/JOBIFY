@@ -1,0 +1,326 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: jobify-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-jobify}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-jobify}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: jobify-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: jobify-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: jobify-kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    ports:
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  migration:
+    image: node:25-alpine
+    container_name: jobify-migration
+    working_dir: /app
+    volumes:
+      - ./database:/app/database
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      PGHOST: postgres
+      PGUSER: ${DB_USER:-postgres}
+      PGPASSWORD: ${DB_PASSWORD:-postgres}
+      PGDATABASE: ${DB_NAME:-jobify}
+      PGPORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "npm init -y >/dev/null && npm install @neondatabase/serverless && node database/scripts/migrate.mjs up"
+
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: jobify-auth-service
+    restart: unless-stopped
+    environment:
+      PORT: 5001
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+      SESSION_SECRET: ${SESSION_SECRET:-supersecretsessionkey}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    build:
+      context: ./services/user
+      dockerfile: Dockerfile
+    container_name: jobify-user-service
+    restart: unless-stopped
+    environment:
+      PORT: 5002
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  job-service:
+    build:
+      context: ./services/job
+      dockerfile: Dockerfile
+    container_name: jobify-job-service
+    restart: unless-stopped
+    environment:
+      PORT: 5003
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Phase 6: same image/codebase as job-service, different command. This is
+  # the ONLY process that runs the ingestion scheduler — job-service (the
+  # API) never starts one itself, so scaling job-service replicas can never
+  # accidentally spawn duplicate schedulers. Safe to scale this to >1
+  # replica too: per-source overlap is prevented by the DB-backed lock in
+  # ingestion_locks, not by there being a single container.
+  job-scheduler:
+    build:
+      context: ./services/job
+      dockerfile: Dockerfile
+    container_name: jobify-job-scheduler
+    restart: unless-stopped
+    command: ["node", "dist/ingestion/scripts/run-scheduler.js"]
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      NODE_ENV: production
+      INGESTION_SCHEDULER_ENABLED: ${INGESTION_SCHEDULER_ENABLED:-false}
+      INGESTION_SCHEDULES: ${INGESTION_SCHEDULES:-}
+      INGESTION_TIMEZONE: ${INGESTION_TIMEZONE:-UTC}
+      INGESTION_MAX_CONCURRENCY: ${INGESTION_MAX_CONCURRENCY:-1}
+      INGESTION_LOCK_TTL_SECONDS: ${INGESTION_LOCK_TTL_SECONDS:-1800}
+      INGESTION_RETRY_MAX_ATTEMPTS: ${INGESTION_RETRY_MAX_ATTEMPTS:-3}
+      INGESTION_RETRY_BASE_DELAY_MS: ${INGESTION_RETRY_BASE_DELAY_MS:-1000}
+      INGESTION_RETRY_MAX_DELAY_MS: ${INGESTION_RETRY_MAX_DELAY_MS:-30000}
+      INGESTION_STALE_AFTER_RUNS: ${INGESTION_STALE_AFTER_RUNS:-3}
+      INGESTION_SHUTDOWN_TIMEOUT_MS: ${INGESTION_SHUTDOWN_TIMEOUT_MS:-30000}
+      LEVER_COMPANIES: ${LEVER_COMPANIES:-}
+      GREENHOUSE_COMPANIES: ${GREENHOUSE_COMPANIES:-}
+      ASHBY_COMPANIES: ${ASHBY_COMPANIES:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    stop_grace_period: 35s
+
+  # Phase 8: same image/codebase as job-service and job-scheduler, different
+  # command. Periodically processes any external_jobs that don't yet have
+  # up-to-date intelligence, so newly ingested jobs "eventually" get
+  # intelligence without polling from the API. Not the Phase 6 Scheduler
+  # (no per-source cron/lock needed here — see
+  # services/job/src/intelligence/scripts/worker.ts for why a plain
+  # interval loop is the correct, smaller fit for this task).
+  job-intelligence-worker:
+    build:
+      context: ./services/job
+      dockerfile: Dockerfile
+    container_name: jobify-job-intelligence-worker
+    restart: unless-stopped
+    command: ["node", "dist/intelligence/scripts/worker.js"]
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      NODE_ENV: production
+      INTELLIGENCE_AI_ENABLED: ${INTELLIGENCE_AI_ENABLED:-false}
+      INTELLIGENCE_GEMINI_API_KEY: ${INTELLIGENCE_GEMINI_API_KEY:-}
+      INTELLIGENCE_GEMINI_MODEL: ${INTELLIGENCE_GEMINI_MODEL:-}
+      INTELLIGENCE_MAX_DESCRIPTION_LENGTH: ${INTELLIGENCE_MAX_DESCRIPTION_LENGTH:-20000}
+      INTELLIGENCE_BATCH_SIZE: ${INTELLIGENCE_BATCH_SIZE:-20}
+      INTELLIGENCE_MAX_CONCURRENCY: ${INTELLIGENCE_MAX_CONCURRENCY:-2}
+      INTELLIGENCE_AI_TIMEOUT_MS: ${INTELLIGENCE_AI_TIMEOUT_MS:-15000}
+      INTELLIGENCE_WORKER_INTERVAL_MS: ${INTELLIGENCE_WORKER_INTERVAL_MS:-60000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    stop_grace_period: 35s
+
+  utils-service:
+    build:
+      context: ./services/utils
+      dockerfile: Dockerfile
+    container_name: jobify-utils-service
+    restart: unless-stopped
+    environment:
+      PORT: 5004
+      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:9092
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      migration:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gateway:
+    build:
+      context: ./services/gateway
+      dockerfile: Dockerfile
+    container_name: jobify-gateway
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: 5000
+      AUTH_SERVICE_URL: http://auth-service:5001
+      USER_SERVICE_URL: http://user-service:5002
+      JOB_SERVICE_URL: http://job-service:5003
+      UTILS_SERVICE_URL: http://utils-service:5004
+      REDIS_URL: redis://redis:6379
+      ALLOWED_ORIGIN: ${CLIENT_URL:-http://localhost:3000}
+      NODE_ENV: production
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      job-service:
+        condition: service_healthy
+      utils-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jobify-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_GATEWAY_URL: http://localhost:5000
+      NODE_ENV: production
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
-import { job_service, useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
+import { useAppData } from "@/context/AppContext";
 import { Company } from "@/type";
 import Loading from "@/components/loading";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
-import Cookies from "js-cookie";
 
 export default function PostJobPage() {
   const { isAuth, user, loading } = useAppData();
@@ -40,12 +39,7 @@ export default function PostJobPage() {
   useEffect(() => {
     const fetchCompanies = async () => {
       try {
-        const token = Cookies.get("token");
-        const { data } = await axios.get<Company[]>(`${job_service}/api/job/company/all`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const data = await api.companies.getAll();
         setCompanies(data);
         if (data.length > 0) {
           setFormData(prev => ({ ...prev, company_id: data[0].company_id.toString() }));
@@ -75,21 +69,14 @@ export default function PostJobPage() {
 
     setSubmitLoading(true);
     try {
-      const token = Cookies.get("token");
-      await axios.post(
-        `${job_service}/api/job/new`,
-        {
-          ...formData, // Ensure numbers are passed properly where requested by backend
-          salary: Number(formData.salary),
-          openings: Number(formData.openings),
-          company_id: Number(formData.company_id)
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      await api.jobs.create({
+        ...formData,
+        salary: Number(formData.salary) as any,
+        openings: Number(formData.openings) as any,
+        company_id: Number(formData.company_id),
+        job_type: formData.job_type as any,
+        work_location: formData.work_location as any,
+      });
       toast.success("Job posted successfully!");
       router.push("/jobs");
     } catch (error: any) {

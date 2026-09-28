@@ -1,23 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { auth_service, useAppData } from "@/context/AppContext";
+import { useAppData } from "@/context/AppContext";
+import { api } from "@/lib/api";
 import { redirect } from "next/navigation";
 import React, { FormEvent, useState } from "react";
 import toast from "react-hot-toast";
-import Cookie from "js-cookie";
 import { Label } from "@/components/ui/label";
 import { ArrowRight, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ApiResponse, User } from "@/type";
-import axios from "axios";
 import Loading from "@/components/loading";
-// import type { AxiosError } from "axios";
-
-// const isAxiosError = (error: unknown): error is AxiosError => {
-//   return error instanceof Error && "response" in error;
-// };
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
@@ -25,7 +18,7 @@ const LoginPage = () => {
   const [btnLoading, setBtnLoading] = useState(false);
 
   const { isAuth, setUser, loading, setIsAuth } = useAppData();
-  if (loading) return <Loading />
+  if (loading) return <Loading />;
   if (isAuth) return redirect("/");
 
   const submitHandler = async (e: FormEvent<HTMLFormElement>) => {
@@ -33,23 +26,12 @@ const LoginPage = () => {
 
     setBtnLoading(true);
     try {
-      const { data } = await axios.post<ApiResponse<User>>(
-        `${auth_service}/api/auth/login`,
-        {
-          email,
-          password,
-        },
-      );
+      const data = await api.auth.login({ email, password });
       toast.success(data.message);
-      Cookie.set("token", data.token, {
-        expires: 15,
-        secure: false,
-        path: "/",
-      });
       setUser(data.user);
       setIsAuth(true);
-    } catch (error) {
-      toast.error(error)
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Unable to sign in");
       setIsAuth(false);
     } finally {
       setBtnLoading(false);

@@ -11,7 +11,7 @@
  */
 
 import dotenv from "dotenv";
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 import { loadReliabilityConfig } from "../scheduler/config.js";
 import { Scheduler } from "../scheduler/scheduler.js";
 import { sourceRegistry } from "../sources/index.js";
@@ -51,7 +51,10 @@ if (config.schedules.length === 0) {
   process.exit(1);
 }
 
-const db = neon(connectionString) as unknown as SqlClient;
+const pg = postgres(connectionString);
+const db: SqlClient = {
+  query: (text, params) => pg.unsafe(text, (params ?? []) as any),
+};
 const scheduler = new Scheduler({ db, config });
 
 if (once) {

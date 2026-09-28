@@ -8,7 +8,7 @@
  */
 
 import dotenv from "dotenv";
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 import { runIngestion } from "../runner.js";
 import { sourceRegistry } from "../registry.js";
 import "../sources/index.js";
@@ -21,7 +21,10 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const db = neon(connectionString) as unknown as import("../repository.js").SqlClient;
+const pg = postgres(connectionString);
+const db: import("../repository.js").SqlClient = {
+  query: (text, params) => pg.unsafe(text, (params ?? []) as any),
+};
 
 const adapter = sourceRegistry.createAdapter("fixture");
 const summary = await runIngestion({ source: "fixture", adapter, db });

@@ -3,7 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = path.resolve(__dirname, "../migrations");
@@ -13,7 +13,7 @@ if (!process.env.DB_URL) {
   process.exit(1);
 }
 
-const sql = neon(process.env.DB_URL);
+const sql = postgres(process.env.DB_URL);
 
 async function ensureMigrationTable() {
   await sql`
@@ -86,7 +86,7 @@ async function up() {
 
     console.log(`⏳ Applying migration: ${migration.filename}...`);
     try {
-      await sql.query(migration.content);
+      await sql.unsafe(migration.content);
       await sql`
         INSERT INTO schema_migrations (version, name, checksum)
         VALUES (${migration.version}, ${migration.filename}, ${migration.checksum});
@@ -109,15 +109,19 @@ async function up() {
 const command = process.argv[2] || "up";
 
 if (command === "status") {
-  status().catch((err) => {
-    console.error("Failed to get migration status:", err);
-    process.exit(1);
-  });
+  status()
+    .catch((err) => {
+      console.error("Failed to get migration status:", err);
+      process.exitCode = 1;
+    })
+    .finally(() => sql.end());
 } else if (command === "up") {
-  up().catch((err) => {
-    console.error("Migration execution failed:", err);
-    process.exit(1);
-  });
+  up()
+    .catch((err) => {
+      console.error("Migration execution failed:", err);
+      process.exitCode = 1;
+    })
+    .finally(() => sql.end());
 } else {
   console.log("Usage: node migrate.mjs [up|status]");
   process.exit(1);

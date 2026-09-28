@@ -34,6 +34,7 @@ vi.mock("../utils/redis.js", () => ({
 
 vi.mock("../utils/db.js", () => ({
   sql: { query: mockQuery },
+  sqlClient: { query: mockQuery },
 }));
 
 vi.mock("../producer.js", () => ({

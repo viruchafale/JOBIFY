@@ -16,7 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
+    "postgres": "^3.4.5",
     "@types/cors": "^2.8.19",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",

@@ -147,7 +147,7 @@ export const updateResume = TryCatch(async (req: AuthenticatedRequest, res) => {
 
 export const addSkillToUser = TryCatch(
   async (req: AuthenticatedRequest, res) => {
-    const userId = req.user?.user_id;
+    const userId = req.user!.user_id;
 
     const { skillName } = req.body;
 

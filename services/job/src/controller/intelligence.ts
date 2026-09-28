@@ -7,7 +7,7 @@
  * responses — only the validated, structured result.
  */
 
-import { sql } from "../utils/db.js";
+import { sqlClient } from "../utils/db.js";
 import ErrorHandler from "../utils/errorHandler.js";
 import { TryCatch } from "../utils/TryCatch.js";
 import { getJobIntelligenceForApi } from "../intelligence/repository.js";
@@ -20,12 +20,12 @@ export const getJobIntelligenceHandler = TryCatch(async (req, res) => {
     throw new ErrorHandler(400, "Invalid external job id.");
   }
 
-  const job = await getExternalJobById(sql as any, id);
+  const job = await getExternalJobById(sqlClient, id);
   if (!job) {
     throw new ErrorHandler(404, "External job not found.");
   }
 
-  const intelligence = await getJobIntelligenceForApi(sql as any, id, EXTRACTOR_VERSION);
+  const intelligence = await getJobIntelligenceForApi(sqlClient, id, EXTRACTOR_VERSION);
   if (!intelligence) {
     throw new ErrorHandler(404, "Intelligence has not been generated for this job yet.");
   }

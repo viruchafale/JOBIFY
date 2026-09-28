@@ -7,7 +7,7 @@
  */
 
 import dotenv from "dotenv";
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 import { listSourceHealth, deriveHealthLabel } from "../scheduler/health.js";
 import type { SqlClient } from "../repository.js";
 
@@ -19,7 +19,10 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const db = neon(connectionString) as unknown as SqlClient;
+const pg = postgres(connectionString);
+const db: SqlClient = {
+  query: (text, params) => pg.unsafe(text, (params ?? []) as any),
+};
 const rows = await listSourceHealth(db);
 
 if (rows.length === 0) {

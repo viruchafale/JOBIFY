@@ -7,7 +7,7 @@
  * needed — /api/job/* is already proxied to the job service).
  */
 
-import { sql } from "../utils/db.js";
+import { sqlClient } from "../utils/db.js";
 import ErrorHandler from "../utils/errorHandler.js";
 import { TryCatch } from "../utils/TryCatch.js";
 import {
@@ -25,7 +25,7 @@ export const listExternalJobsHandler = TryCatch(async (req, res) => {
   } catch (error) {
     throw new ErrorHandler(400, (error as Error).message);
   }
-  const jobs = await listExternalJobs(sql as any, filters);
+  const jobs = await listExternalJobs(sqlClient, filters);
   res.json(jobs);
 });
 
@@ -38,7 +38,7 @@ export const searchExternalJobsHandler = TryCatch(async (req, res) => {
     throw new ErrorHandler(400, (error as Error).message);
   }
 
-  const { items, total } = await searchExternalJobs(sql as any, params);
+  const { items, total } = await searchExternalJobs(sqlClient, params);
   const totalPages = total === 0 ? 0 : Math.ceil(total / params.limit);
 
   res.json({
@@ -59,7 +59,7 @@ export const getExternalJobByIdHandler = TryCatch(async (req, res) => {
   if (!Number.isInteger(id) || id < 1) {
     throw new ErrorHandler(400, "Invalid external job id.");
   }
-  const job = await getExternalJobById(sql as any, id);
+  const job = await getExternalJobById(sqlClient, id);
   if (!job) {
     throw new ErrorHandler(404, "External job not found.");
   }

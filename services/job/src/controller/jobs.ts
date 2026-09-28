@@ -90,7 +90,7 @@ export const deleteCompany = TryCatch(
     const { companyId } = req.params;
 
     const [company] = await sql`
-   SELECT logo_public_id FROM companies WHERE company_id =${companyId} AND recruiter_id =${user?.user_id}
+   SELECT logo_public_id FROM companies WHERE company_id =${companyId} AND recruiter_id =${user!.user_id}
   `;
 
     if (!company) {
@@ -218,7 +218,7 @@ export const updateJob = TryCatch(async (req: AuthenticatedRequest, res) => {
 export const getAllCompany = TryCatch(
   async (req: AuthenticatedRequest, res) => {
     const companies = await sql`
-  SELECT * FROM companies WHERE recruiter_id=${req.user?.user_id}
+  SELECT * FROM companies WHERE recruiter_id=${req.user!.user_id}
   `;
     res.json(companies);
   },
@@ -276,7 +276,7 @@ export const getAllActiveJobs = TryCatch(async (req, res) => {
 
   queryString += " ORDER BY j.created_at DESC";
 
-  const jobs = (await sql.query(queryString, values)) as any[];
+  const jobs = (await sql.unsafe(queryString, values)) as any[];
   res.json(jobs);
 });
 

@@ -18,7 +18,7 @@
  */
 
 import dotenv from "dotenv";
-import { neon } from "@neondatabase/serverless";
+import postgres from "postgres";
 import { loadIntelligenceConfig, type IntelligenceConfig } from "../config.js";
 import { runIntelligenceBatch } from "../batch.js";
 import { logIntelligenceEvent } from "../logger.js";
@@ -40,7 +40,10 @@ try {
   process.exit(1);
 }
 
-const db = neon(connectionString) as unknown as SqlClient;
+const pg = postgres(connectionString);
+const db: SqlClient = {
+  query: (text, params) => pg.unsafe(text, (params ?? []) as any),
+};
 
 let stopped = false;
 let running = false;

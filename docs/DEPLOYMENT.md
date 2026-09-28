@@ -56,24 +56,42 @@ Copy `.env.example` (root) to `.env` and every `services/*/.env.example`
 to `services/*/.env`, then fill in real values. **Never commit a filled
 `.env` file** — `.gitignore` already excludes `.env` and `*.pem`.
 
-Two variables have no safe default and **must** be set to real random
-values before any real deployment — Docker Compose's fallback values
-(`supersecretjwtkey`, `supersecretsessionkey`) exist only so the stack
-can boot for local smoke-testing, not for production use:
+One variable has no safe default and **must** be set to a real random
+value before any real deployment — Docker Compose's fallback value
+(`supersecretjwtkey`) exists only so the stack can boot for local
+smoke-testing, not for production use:
 
 ```bash
-openssl rand -hex 64   # JWT_SECRET
-openssl rand -hex 64   # SESSION_SECRET
+openssl rand -hex 64   # SECRET_KEY — shared across auth/user/job/utils, signs and verifies the same JWTs
 openssl rand -hex 32   # INTERNAL_SERVICE_KEY (shared across all services)
 ```
 
-If you deploy `auth-service`, `user-service`, and `job-service` outside
-Docker Compose (e.g. directly on a VM or a serverless platform), set
-`DB_URL` — not `DATABASE_URL` — to the Postgres connection string; that is
-the variable name `services/{auth,user,job}/src/utils/db.ts` actually
-reads. The ingestion/intelligence one-off scripts under
-`services/job/src/ingestion/scripts/` and `src/intelligence/scripts/`
-accept either name.
+`docker-compose.yml` previously set several env vars under names the code
+never actually reads — every service booted, but with the wrong (or no)
+value for that setting, and each only surfaced once the layer before it
+was fixed enough to reach it live:
+
+| Compose used to set | Code actually reads | Effect while wrong |
+| :--- | :--- | :--- |
+| `DATABASE_URL` (auth/user/job) | `DB_URL` | DB client built with `undefined` connection string |
+| `JWT_SECRET` / `SESSION_SECRET` | `SECRET_KEY` | Every login/register/protected route failed: `"SECRET_KEY is required"` |
+| `CLIENT_URL` (auth/user/job/utils) | `CORS_ORIGINS` | CORS silently locked to `http://localhost:3000` regardless of config |
+| `ALLOWED_ORIGIN` (gateway) | `CORS_ORIGINS` | Same, at the Gateway |
+| `KAFKA_BROKERS` (utils only; auth/job had none) | `KAFKA_BROKER` | Producers/consumers defaulted to `localhost:9092`, which isn't Kafka inside a container — `KafkaJSConnectionError` |
+| *(unset)* | `FRONTEND_URL` (auth only, password-reset links) | Reset link rendered with `undefined` as its base URL |
+
+All fixed in `docker-compose.yml` to set the names the code actually
+reads. If you deploy any service outside Docker Compose, use the
+variable names in that service's own `.env.example` — those were already
+correct; only the compose file had drifted.
+
+Separately, `NEXT_PUBLIC_GATEWAY_URL` is **inlined into the frontend's
+browser bundle at Docker build time** (Next.js behavior for all
+`NEXT_PUBLIC_*` vars) — setting it as a container `environment:` value at
+runtime has no effect on code already built into the bundle. It must be
+passed as a Docker build arg (`docker compose build --build-arg` or the
+`build.args` block in `docker-compose.yml`, already wired) matching
+wherever the Gateway is actually reachable from the browser.
 
 ## Database setup
 

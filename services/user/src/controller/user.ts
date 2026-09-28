@@ -154,12 +154,12 @@ export const addSkillToUser = TryCatch(
     if (!skillName || skillName.trim() === "") {
       throw new ErrorHandler(400, "Please Provide the skill name");
     }
-    let wasSkillAdded = false;
-
-    try {
-      await sql`
-      BEGIN
-      `;
+    // postgres.js pools connections, so separate tagged-template BEGIN/
+    // COMMIT/ROLLBACK calls can each land on a different connection —
+    // it rejects that outright ("UNSAFE_TRANSACTION"). sql.begin() runs
+    // the callback against one reserved connection and commits/rolls
+    // back automatically based on whether it throws.
+    const wasSkillAdded = await sql.begin(async (sql) => {
       const users =
         await sql`SELECT  user_id FROM users WHERE user_id=${userId}`;
 
@@ -173,14 +173,8 @@ export const addSkillToUser = TryCatch(
       const insertionResult =
         await sql`INSERT INTO user_skills(user_id,skill_id) VALUES (${userId},${skillId}) ON CONFLICT (user_id,skill_id) DO NOTHING  RETURNING user_id`;
 
-      if (insertionResult.length > 0) {
-        wasSkillAdded = true;
-      }
-      await sql`COMMIT `;
-    } catch (error) {
-      await sql`ROLLBACK`;
-      throw error;
-    }
+      return insertionResult.length > 0;
+    });
 
     if (!wasSkillAdded) {
       return res.status(200).json({

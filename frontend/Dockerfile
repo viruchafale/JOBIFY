@@ -12,7 +12,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN npm run build 
+# Next.js inlines NEXT_PUBLIC_* vars into the client bundle at build time —
+# setting it as a runtime `environment:` on the container (as docker-compose
+# does below) has no effect on already-built browser-side code, so it must
+# be passed as a build arg instead.
+ARG NEXT_PUBLIC_GATEWAY_URL=http://localhost:5000
+ENV NEXT_PUBLIC_GATEWAY_URL=$NEXT_PUBLIC_GATEWAY_URL
+
+RUN npm run build
 
 FROM node:25-alpine AS runner
 

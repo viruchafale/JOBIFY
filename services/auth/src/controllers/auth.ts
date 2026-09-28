@@ -41,7 +41,7 @@ export const registerUser = TryCatch(async (req, res, next) => {
         ${phoneNumber},
         ${role}
       ) 
-      RETURNING user_id, name, email, phone_number, role, create_at`;
+      RETURNING user_id, name, email, phone_number, role, created_at`;
 
     registeredUser = user;
   } else if (role === "jobseeker") {
@@ -95,7 +95,7 @@ export const registerUser = TryCatch(async (req, res, next) => {
         ${data.url},
         ${data.public_id}
       ) 
-      RETURNING user_id, name, email, phone_number, role, bio, resume, create_at`;
+      RETURNING user_id, name, email, phone_number, role, bio, resume, created_at`;
 
     registeredUser = user;
   }

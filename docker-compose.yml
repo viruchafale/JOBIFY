@@ -98,14 +98,17 @@ services:
       PORT: 5001
       DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
-      SESSION_SECRET: ${SESSION_SECRET:-supersecretsessionkey}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      SECRET_KEY: ${SECRET_KEY:-supersecretjwtkey}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      KAFKA_BROKER: kafka:9092
       NODE_ENV: production
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       migration:
         condition: service_completed_successfully
@@ -125,8 +128,8 @@ services:
       PORT: 5002
       DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      SECRET_KEY: ${SECRET_KEY:-supersecretjwtkey}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
@@ -154,16 +157,19 @@ services:
       PORT: 5003
       DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      SECRET_KEY: ${SECRET_KEY:-supersecretjwtkey}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      KAFKA_BROKER: kafka:9092
       NODE_ENV: production
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       migration:
         condition: service_completed_successfully
@@ -251,13 +257,14 @@ services:
       PORT: 5004
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
       REDIS_URL: redis://redis:6379
-      KAFKA_BROKERS: kafka:9092
+      KAFKA_BROKER: kafka:9092
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
-      CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
+      SECRET_KEY: ${SECRET_KEY:-supersecretjwtkey}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       NODE_ENV: production
     depends_on:
       postgres:
@@ -289,7 +296,7 @@ services:
       JOB_SERVICE_URL: http://job-service:5003
       UTILS_SERVICE_URL: http://utils-service:5004
       REDIS_URL: redis://redis:6379
-      ALLOWED_ORIGIN: ${CLIENT_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       NODE_ENV: production
     depends_on:
       auth-service:
@@ -310,12 +317,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        # Next.js inlines NEXT_PUBLIC_* into the client bundle at build
+        # time — this must match whatever host/port the Gateway is
+        # actually reachable at from the browser (see GATEWAY_PORT above).
+        NEXT_PUBLIC_GATEWAY_URL: ${NEXT_PUBLIC_GATEWAY_URL:-http://localhost:5000}
     container_name: jobify-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      NEXT_PUBLIC_GATEWAY_URL: http://localhost:5000
       NODE_ENV: production
     depends_on:
       gateway:

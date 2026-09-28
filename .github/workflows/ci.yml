@@ -49,13 +49,14 @@ jobs:
             services/*/package.json
             frontend/package.json
 
-      - name: Install Root Dependencies
-        run: npm ci || npm install
-
       - name: Run Database Migrations
         env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/jobify_test
-        run: node database/scripts/migrate.mjs up
+          DB_URL: postgres://postgres:postgres@localhost:5432/jobify_test
+        run: |
+          cd database
+          npm init -y >/dev/null
+          npm install postgres
+          node scripts/migrate.mjs up
 
       - name: Install and Verify Gateway Service
         run: |

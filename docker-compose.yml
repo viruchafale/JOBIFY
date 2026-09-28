@@ -86,7 +86,7 @@ services:
       postgres:
         condition: service_healthy
     command: >
-      sh -c "npm init -y >/dev/null && npm install @neondatabase/serverless && node database/scripts/migrate.mjs up"
+      sh -c "npm init -y >/dev/null && npm install postgres && node database/scripts/migrate.mjs up"
 
   auth-service:
     build:
@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 5001
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
       SESSION_SECRET: ${SESSION_SECRET:-supersecretsessionkey}
@@ -123,7 +123,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 5002
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
@@ -152,7 +152,7 @@ services:
     restart: unless-stopped
     environment:
       PORT: 5003
-      DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
+      DB_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
       CLIENT_URL: ${CLIENT_URL:-http://localhost:3000}
@@ -281,7 +281,7 @@ services:
     container_name: jobify-gateway
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "${GATEWAY_PORT:-5000}:5000"
     environment:
       PORT: 5000
       AUTH_SERVICE_URL: http://auth-service:5001
@@ -313,7 +313,7 @@ services:
     container_name: jobify-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       NEXT_PUBLIC_GATEWAY_URL: http://localhost:5000
       NODE_ENV: production

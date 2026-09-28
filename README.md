@@ -204,7 +204,7 @@ Release lease
 ```
 
 - **Config-driven schedules** — a semicolon-separated `source:cron` list (`INGESTION_SCHEDULES`), validated at startup against the registered source list.
-- **PostgreSQL-backed leases, not advisory locks** — the job service talks to Postgres through `@neondatabase/serverless`'s HTTP driver, where each query is its own request with no guaranteed persistent connection. A session-level advisory lock requires exactly that guarantee, so a `ingestion_locks` table row with a TTL is used instead — it survives across requests, processes, and crashes using the same query interface every other ingestion query already uses.
+- **PostgreSQL-backed leases, not advisory locks** — a session-level advisory lock requires the same connection to be held for an entire ingestion run, which doesn't survive a scheduler restart, crash, or a second replica. A `ingestion_locks` table row with a TTL is used instead — it survives across processes and crashes using the same query interface every other ingestion query already uses.
 - **Bounded retries** — exponential backoff with jitter, only for errors classified `retryable` (HTTP 429/5xx, timeouts, network errors); permanent/configuration errors are never retried.
 - **Failure isolation** — one source failing never affects another; a scheduler task throwing never crashes the process.
 - **Source health** — `ingestion_source_health` tracks `last_status`, `consecutive_failures`, and totals per source.
@@ -288,7 +288,7 @@ The application layer (auth, jobseeker/recruiter profiles, recruiter-posted jobs
 | :--- | :--- |
 | Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS, Radix UI |
 | Backend | Node.js, Express 5, TypeScript (5 services: `gateway`, `auth`, `user`, `job`, `utils`) |
-| Database | PostgreSQL 16 (`@neondatabase/serverless` driver; plain SQL migrations, no ORM) |
+| Database | PostgreSQL 16 (`postgres` — porsager/postgres — driver; plain SQL migrations, no ORM) |
 | Cache | Redis 7 (sessions, rate limiting) |
 | Messaging | Apache Kafka (asynchronous transactional email) |
 | Search | PostgreSQL full-text search (no external search engine) |
@@ -361,7 +361,7 @@ cd frontend && npm install && npm run dev
 Apply database migrations before starting any service:
 
 ```bash
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/jobify \
+DB_URL=postgres://postgres:postgres@localhost:5432/jobify \
   node database/scripts/migrate.mjs up
 ```
 
@@ -396,6 +396,10 @@ This starts, in dependency order: `postgres`, `redis`, `zookeeper`, `kafka`, a o
 | PostgreSQL | `localhost:5432` |
 | Redis | `localhost:6379` |
 | Kafka | `localhost:29092` (host), `kafka:9092` (in-network) |
+
+For a real (non-local) deployment — environment separation, HTTPS, domain
+setup, backups, and what was fixed to make this stack production-viable —
+see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 `auth-service`, `user-service`, `job-service`, `utils-service`, `job-scheduler`, and `job-intelligence-worker` are internal to the Compose network and reached only through the Gateway — they have no host port mappings.
 
@@ -474,7 +478,7 @@ The current data volume and query patterns (keyword + structured filters over a 
 Each ATS has its own response shape, quirks (Greenhouse's double-escaped HTML; Lever's pre-split `lists`), and failure modes. Isolating that in a thin adapter (`fetchJobs()` only) keeps every external API contract in exactly one file, while normalization/validation/deduplication/persistence are written once and never duplicated per source.
 
 **Why PostgreSQL-backed leases instead of `pg_advisory_lock`?**
-The job service reaches Postgres through `@neondatabase/serverless`'s stateless HTTP driver — there is no guarantee the same connection persists for an entire ingestion run, which a session-level advisory lock requires. A row with a TTL in `ingestion_locks` survives across requests, processes, and crashes using the same query interface already used everywhere else.
+A session-level advisory lock requires the same connection to be held for an entire ingestion run, which doesn't survive a scheduler crash, restart, or a second replica running concurrently. A row with a TTL in `ingestion_locks` survives across processes and crashes using the same query interface already used everywhere else.
 
 **Why deterministic extraction before AI?**
 Skills, seniority, experience, education, and compensation can be derived reliably and reproducibly from structured data and pattern matching. Reserving AI for the cases deterministic extraction genuinely can't reach (unstructured responsibility/requirement prose) keeps the system's output explainable, keeps AI cost near zero by default, and means the system is fully functional with `INTELLIGENCE_AI_ENABLED=false`.

@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import app from "./app.js";
 import { connectKafka, disconnectKafka } from "./producer.js";
 import { connectRedis, redisClient } from "./utils/redis.js";
 
@@ -10,8 +9,14 @@ let server: any;
 
 connectKafka();
 
+// `app.js` is imported dynamically, only after Redis is connected: it
+// transitively imports rateLimit.ts, whose RedisStore constructs eagerly and
+// sends a command as soon as the module loads. A static top-level import
+// would evaluate that before connectRedis() below ever runs, crashing the
+// process with "ClientClosedError" the instant a real Redis is present.
 connectRedis()
-  .then(() => {
+  .then(async () => {
+    const { default: app } = await import("./app.js");
     server = app.listen(PORT, () => {
       console.log(`Job service is running on http://localhost:${PORT}`);
     });

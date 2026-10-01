@@ -1,0 +1,14 @@
+{
+  "name": "jobify-e2e-tests",
+  "version": "1.0.0",
+  "description": "Playwright browser E2E tests — real frontend, real Gateway, real services. No API mocking.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^26.6.3"
+  }
+}

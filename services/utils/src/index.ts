@@ -8,6 +8,12 @@ cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.API_KEY,
   api_secret: process.env.API_SECRET,
+  // Defaults to Cloudinary's real API (undefined here falls through to
+  // the SDK's own "https://api.cloudinary.com" default) — only ever
+  // overridden in a test environment, to point at a local stub so
+  // integration tests can verify the upload *request* reaches this
+  // service correctly without depending on a real Cloudinary account.
+  upload_prefix: process.env.CLOUDINARY_UPLOAD_PREFIX,
 });
 
 const port = process.env.PORT || 5005;

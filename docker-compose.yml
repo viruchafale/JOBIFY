@@ -102,7 +102,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       KAFKA_BROKER: kafka:9092
-      NODE_ENV: production
+      UPLOAD_SERVICE: http://utils-service:5004
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-supersecretinternalkey}
+      NODE_ENV: ${NODE_ENV:-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -133,7 +135,9 @@ services:
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
-      NODE_ENV: production
+      UPLOAD_SERVICE: http://utils-service:5004
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-supersecretinternalkey}
+      NODE_ENV: ${NODE_ENV:-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -163,7 +167,9 @@ services:
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
       KAFKA_BROKER: kafka:9092
-      NODE_ENV: production
+      UPLOAD_SERVICE: http://utils-service:5004
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-supersecretinternalkey}
+      NODE_ENV: ${NODE_ENV:-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -194,7 +200,7 @@ services:
     command: ["node", "dist/ingestion/scripts/run-scheduler.js"]
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       INGESTION_SCHEDULER_ENABLED: ${INGESTION_SCHEDULER_ENABLED:-false}
       INGESTION_SCHEDULES: ${INGESTION_SCHEDULES:-}
       INGESTION_TIMEZONE: ${INGESTION_TIMEZONE:-UTC}
@@ -231,7 +237,7 @@ services:
     command: ["node", "dist/intelligence/scripts/worker.js"]
     environment:
       DATABASE_URL: postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-jobify}
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
       INTELLIGENCE_AI_ENABLED: ${INTELLIGENCE_AI_ENABLED:-false}
       INTELLIGENCE_GEMINI_API_KEY: ${INTELLIGENCE_GEMINI_API_KEY:-}
       INTELLIGENCE_GEMINI_MODEL: ${INTELLIGENCE_GEMINI_MODEL:-}
@@ -264,8 +270,22 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SECRET_KEY: ${SECRET_KEY:-supersecretjwtkey}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-supersecretinternalkey}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      NODE_ENV: production
+      # utils-service's own code reads the short names below (see
+      # services/utils/src/index.ts), not CLOUDINARY_*; reusing the same
+      # root-level CLOUDINARY_* values so there's still only one place to
+      # configure real Cloudinary credentials.
+      CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      API_KEY: ${CLOUDINARY_API_KEY}
+      API_SECRET: ${CLOUDINARY_API_SECRET}
+      CLOUDINARY_UPLOAD_PREFIX: ${CLOUDINARY_UPLOAD_PREFIX:-https://api.cloudinary.com}
+      # Only relevant together with CLOUDINARY_UPLOAD_PREFIX pointed at a
+      # local self-signed test stub (see tests/integration/README.md) —
+      # Node only skips TLS verification when this is exactly "0", so it's
+      # a no-op (verification stays on) for every other deployment.
+      NODE_TLS_REJECT_UNAUTHORIZED: ${NODE_TLS_REJECT_UNAUTHORIZED:-1}
+      NODE_ENV: ${NODE_ENV:-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -297,7 +317,7 @@ services:
       UTILS_SERVICE_URL: http://utils-service:5004
       REDIS_URL: redis://redis:6379
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
     depends_on:
       auth-service:
         condition: service_healthy
@@ -327,7 +347,7 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
     depends_on:
       gateway:
         condition: service_healthy

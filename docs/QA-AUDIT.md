@@ -596,3 +596,205 @@ imported app:
   `docker-compose.yml` change, and spot-checked once manually, but
   don't have a `tests/integration` test of their own — only
   `auth-service`'s and `user-service`'s upload paths do.
+
+---
+
+## 9. P1 — Authorization matrix, ownership, and browser E2E
+
+Everything in §1–§8 is unchanged — this section is additive. Scope per
+the P1 brief: authorization coverage, cross-user/resource ownership,
+real browser E2E, complete happy-path workflows, and finding
+integration bugs unit tests can't reach. Playwright was added fresh
+(not present before this pass); Vitest was not replaced or removed
+anywhere.
+
+### 9.1 Authorization matrix
+
+Built by reading every route in `services/{auth,user,job,utils,gateway}`
+before writing any test (not assumed) — see
+`tests/integration/authorization.matrix.test.ts` and
+`ownership.idor.test.ts` for the full reasoning behind each row,
+including which endpoints were deliberately judged *not* to need
+ownership scoping and why.
+
+| Endpoint | Jobseeker | Recruiter | Unauthenticated | Ownership |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST /api/job/company/new` | 403 denied | 200 allowed | 401 | n/a (create) |
+| `POST /api/job/new` | 403 denied | 200 allowed (own company only — 404 if `company_id` isn't theirs) | 401 | enforced at create time |
+| `PUT /api/job/update/:jobId` | 403 denied (ownership blocks any non-owner regardless of role) | 200 if owner, 403 if not | 401 | enforced — **found and fixed a crash in this path, see §9.2** |
+| `DELETE /api/job/company/:companyId` | 403 (role-blind path still 401/403 via isAuth+no company match) | 200 if owner, 404 if not (no existence leak) | 401 | enforced |
+| `GET /api/job/company/:id` | 200 (by design) | 200 (by design) | 401 | **not** ownership-scoped — deliberate: public company-profile data, confirmed by `GET /api/job/company/all` existing as the owner-only counterpart |
+| `GET /api/job/company/all` | 200, own companies only (empty for a jobseeker, since they own none) | 200, own companies only | 401 | enforced (query itself is scoped) |
+| `GET /api/job/application/:jobId` | 403 | 200 if owner, 403 if not | 401 | enforced |
+| `PUT /api/job/application/update/:id` | 403 | 200 if owner, **404** if not (see §9.2 — should arguably be 403, not a security hole) | 401 | enforced |
+| `POST /api/job/apply/:jobId` | 200 (own identity only) | 403 | 401 | n/a (create, self-only) |
+| `GET /api/user/application/all` | 200, own applications only | 403 | 401 | enforced |
+| `GET /api/user/:userId` | 200 if self, 403 if not (any role) | 200 if self, 403 if not (any role) | 401 | enforced — the original P0.2 IDOR fix |
+| `PUT /api/user/update/profile`, `/pic`, `/resume`; `POST /skill/add`; `DELETE /skill/delete` | 200, operates on caller's own id only | 200, operates on caller's own id only | 401 | not applicable — no client-supplied id exists to substitute |
+| `POST /api/utils/career`, `/resume-analyzer` | 200 (session required) | 200 (session required) | 401 | not applicable — no persisted/shared resource by id |
+
+### 9.2 Bugs found
+
+**Bug: `PUT /api/job/update/:jobId` crashes (500) on any partial update**
+
+- **Reproduction**: sent a real update payload missing `job_type`,
+  `work_location`, `company_id`, and `is_active` (exactly the kind of
+  partial update a "toggle is_active" feature would send) through the
+  Gateway as an authenticated, owning recruiter.
+  `{"message":"UNDEFINED_VALUE: Undefined values are not allowed"}`,
+  HTTP 500.
+- **Root cause**: `postgres.js` (the driver introduced during the P0
+  Neon-driver replacement) rejects `undefined` as a query parameter
+  outright. `updateJob` (`services/job/src/controller/jobs.ts`)
+  interpolated every destructured `req.body` field directly into the
+  `UPDATE` statement with no fallback, so any omitted field crashed the
+  whole request — not specific to this endpoint's logic, the same class
+  of issue already fixed once during P0 for `req.user?.user_id`, just
+  not caught there because unit tests mock the DB and always construct
+  the full object.
+- **Regression test**: `tests/integration/ownership.idor.test.ts` — "recruiter
+  A can update A's own job with a partial payload" and "toggling only
+  is_active... does not crash."
+- **Fix**: `updateJob` now selects the full existing row first (already
+  fetching it for the ownership check) and falls back to the existing
+  value (`field ?? existingJob.field`) for anything the caller didn't
+  send.
+- **Verification**: red→green actually demonstrated — reverted the fix,
+  rebuilt `job-service`, confirmed both new tests failed with the exact
+  original 500; restored, rebuilt, confirmed 60/60 integration tests
+  pass.
+
+**Finding (not a bug): apply-time file upload validation is unreachable in practice**
+
+- `applyJob` only inspects `req.file` when `resumeUrl` is still falsy
+  after trying `req.body.resume` and then `user.resume`. Every jobseeker
+  in this product already has a resume from registration (mandatory at
+  signup), so that fallback is always populated — attaching an invalid
+  or oversized file at apply time is silently ignored, not rejected,
+  because the code never reaches `assertPdf` on that path. Not a
+  security issue (no unsafe data is stored — the existing, already-
+  validated resume URL is used) and not fixed, since "fix" would mean
+  guessing at an unspecified product decision (should re-uploading at
+  apply time ever override the profile resume?) rather than a clear
+  bug. Documented and asserted as the real, current behavior in
+  `tests/integration/upload.job-service.test.ts`.
+
+**Minor findings, documented, not fixed (no security impact):**
+
+- `PUT /api/job/application/update/:id`'s ownership-denial branch
+  returns 404, not 403, unlike every other ownership check in this
+  codebase (`services/job/src/controller/jobs.ts`, `updateApplication`).
+  Access is correctly denied either way; only the status code is
+  inconsistent.
+- `updateJob`'s role check is commented out (dead code) — not
+  exploitable in practice because the ownership check
+  (`posted_by_recruiter_id !== user.user_id`) still blocks every
+  non-owner regardless of role, and only recruiters can ever own a job.
+- The frontend's `/account/[id]` page shows a generic "User not found"
+  for both "doesn't exist" and "exists but isn't yours" (the IDOR-denied
+  case) — correct in substance (no data leak either way) but doesn't
+  give a user a clear "access denied" explanation. Confirmed via
+  `tests/e2e/cross-user.authorization.spec.ts`.
+
+### 9.3 Ownership / IDOR coverage beyond the original fix
+
+`tests/integration/ownership.idor.test.ts` — searched every route for
+the same "authenticated but not owned" pattern that caused the original
+IDOR before writing any test. Companies, jobs, and applications all
+have real ownership enforcement, verified both by status code and
+response body (never leaking the other party's data in a denial). Full
+reasoning for each resource, including why `GET /api/job/company/:id`
+is correctly *not* ownership-scoped, is written as comments directly in
+that file and summarized in §9.1's table.
+
+### 9.4 Upload integration coverage (closing the gap §8.6 flagged)
+
+`tests/integration/upload.job-service.test.ts` — company-logo upload
+(valid/invalid-type/oversized/unauthenticated/wrong-role) and
+apply-with-resume upload (valid/oversized/unauthenticated/wrong-role/
+duplicate-application), through the real Gateway, real `UPLOAD_SERVICE`,
+real `INTERNAL_SERVICE_KEY`, real Cloudinary stub. This was the one gap
+explicitly called out as remaining in §8.6 — now covered.
+
+### 9.5 Playwright E2E
+
+Added fresh — `tests/e2e/` (Playwright, real frontend, real Gateway,
+real services, no API mocking anywhere). Vitest remains the unit/API
+framework; nothing was replaced.
+
+| Spec | Workflow | Result |
+| :--- | :--- | :--- |
+| `jobseeker.happy-path.spec.ts` | register (+ resume upload) → login → profile → resume visible → browse → search → open job → intelligence (where available) → logout → protected data gone | PASS |
+| `recruiter.happy-path.spec.ts` | register → profile (no resume section) → create company (+ logo upload) → post a job → dashboard shows it → jobseeker-only nav entry absent → logout | PASS |
+| `cross-user.authorization.spec.ts` | two real browser contexts/identities; A→A allowed, B→A denied (no data in response), B→B allowed | PASS |
+| `search.spec.ts` | keyword, multi-word, no-results, special characters, SQL-injection-shaped input, empty query, oversized query (API-rejected, shown as error), filters, sort, malformed numeric filter (API-rejected, shown as error), pagination, debounced typing | PASS (12 cases) |
+| `session.spec.ts` | login persists across refresh; logout clears it; refresh after logout shows nothing; a cleared/invalid session never leaves authenticated data displayed | PASS (2 cases) |
+
+Three real locator/timing bugs were found and fixed **in the tests
+themselves** during this work (not product bugs) — recorded here for
+honesty about what "17/17 passing" actually took to get right:
+duplicate "Sign In"/"Post Job" accessible names between the navbar and
+page content requiring scoped locators; a loose `/result/` regex
+matching real job-description prose containing words like
+"results-driven"; and a redundant `page.goto` after the app's own
+client-side redirect that raced the just-created company against the
+next page's on-mount fetch (removing the redundant navigation, not
+adding a wait/sleep, fixed it — consistent with not depending on
+arbitrary timing).
+
+### 9.6 Rate limiting
+
+Confirmed explicitly, not assumed: after this pass's test runs (under
+`NODE_ENV=test`, which raises these specific limits — see §3.6/§8),
+brought the stack back to plain `NODE_ENV=production` defaults and sent
+6 rapid `POST /api/auth/register` requests — **all 6 returned 429**,
+because the real Redis counter for that window already reflected more
+than 5 requests (every prior run against this environment, test-mode or
+not, increments the same key). This is exactly the correct, unweakened
+production behavior — the limit value itself never changed, only
+`NODE_ENV=test` temporarily permits more requests through it.
+
+### 9.7 Test counts (exact, this pass)
+
+```text
+Unit/API:
+auth       7/7
+user       7/7
+job        423/423
+utils      14/14
+gateway    6/6
+
+Integration (tests/integration):
+60/60
+
+Playwright (tests/e2e):
+17/17
+
+Typecheck (all 5 backend services + frontend):
+PASS
+
+Frontend build:
+PASS (16 routes)
+
+Backend builds:
+PASS (5/5)
+```
+
+### 9.8 Remaining gaps after P1
+
+- Redis/Kafka failure-injection tests (§6 P3) — still not attempted.
+- Search: no dedicated test for the search rate limiter itself (120
+  req/min) or for result ranking quality — only that queries don't
+  crash and return a sane shape.
+- Job intelligence: live reprocessing/idempotency verified in Phase 8's
+  own unit suite and once manually in the P0 pass; not re-verified
+  through the browser beyond "the Intelligence section renders when
+  present," which `jobseeker.happy-path.spec.ts` does check.
+- The three minor findings in §9.2 (404-vs-403 on application update,
+  dead role-check comment, generic "User not found" wording) are
+  documented, not fixed — none are security issues.
+- No CI integration yet for either `tests/integration` or `tests/e2e` —
+  both still require a manually-started Docker stack and (for upload
+  tests) the Cloudinary stub; out of scope for this pass.
+- Playwright currently runs one browser (Chromium) only — no
+  cross-browser matrix.

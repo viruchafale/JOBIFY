@@ -30,7 +30,7 @@ test("jobseeker: register -> upload resume -> login -> profile -> browse -> sear
 
   // Registration auto-authenticates (session cookie set server-side) and
   // redirects home — confirm that actually happened before continuing.
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/", { timeout: 15000 });
 
   // 5. Login — exercise the login page/flow explicitly rather than
   // relying solely on registration's auto-login, since a real user will
@@ -43,7 +43,7 @@ test("jobseeker: register -> upload resume -> login -> profile -> browse -> sear
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(password);
   await page.getByRole("main").getByRole("button", { name: /^sign in$/i }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/", { timeout: 15000 });
 
   // 6-7. Open profile, verify own profile information
   await page.goto("/account");

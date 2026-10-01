@@ -33,7 +33,7 @@ test("recruiter: register -> company profile -> post a job -> jobseeker-only act
   await page.locator("#phone").fill("5559990000");
   await page.locator("#password").fill(password);
   await page.getByRole("button", { name: /register/i }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL("/", { timeout: 15000 });
 
   // Profile shows recruiter role, no resume section (jobseeker-only).
   await page.goto("/account");

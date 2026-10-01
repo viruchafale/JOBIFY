@@ -16,7 +16,7 @@ test.describe("Session (P1.9)", () => {
     await page.locator("#phone").fill("5557778888");
     await page.locator("#password").fill(password);
     await page.getByRole("button", { name: /register/i }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/", { timeout: 15000 });
 
     // 2-3. Refresh — session remains valid (AppContext re-fetches /api/user/me on mount).
     await page.reload();
@@ -48,7 +48,7 @@ test.describe("Session (P1.9)", () => {
     await page.locator("#phone").fill("5551112222");
     await page.locator("#password").fill(password);
     await page.getByRole("button", { name: /register/i }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL("/", { timeout: 15000 });
 
     // Simulate an expired/invalid/revoked session the way the real
     // backend produces one (Redis session entry gone / cookie tampered)

@@ -3,9 +3,13 @@ import { RedisStore } from "rate-limit-redis";
 import { redisClient } from "../utils/redis.js";
 import type { AuthenticatedRequest } from "./auth.js";
 
+// See services/auth/src/middleware/rateLimit.ts for why NODE_ENV=test
+// raises these — production defaults (10/hour, 20/hour) are unchanged.
+const isTest = process.env.NODE_ENV === "test";
+
 export const applicationSubmissionLimit = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 10,
+  limit: isTest ? 1000 : 10,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   validate: { keyGeneratorIpFallback: false },
@@ -16,7 +20,7 @@ export const applicationSubmissionLimit = rateLimit({
 
 export const uploadLimit = rateLimit({
   windowMs: 60 * 60 * 1000,
-  limit: 20,
+  limit: isTest ? 1000 : 20,
   standardHeaders: "draft-8",
   legacyHeaders: false,
   validate: { keyGeneratorIpFallback: false },

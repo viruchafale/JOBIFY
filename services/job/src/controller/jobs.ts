@@ -185,7 +185,7 @@ export const updateJob = TryCatch(async (req: AuthenticatedRequest, res) => {
   } = req.body;
 
   const [existingJob] = await sql`
-    SELECT posted_by_recruiter_id FROM jobs WHERE job_id =${req.params.jobId}
+    SELECT * FROM jobs WHERE job_id =${req.params.jobId}
   `;
 
   if (!existingJob) {
@@ -196,16 +196,21 @@ export const updateJob = TryCatch(async (req: AuthenticatedRequest, res) => {
     throw new ErrorHandler(403, "Forbiden You are not allowed");
   }
 
+  // postgres.js rejects `undefined` as a query parameter outright
+  // ("UNDEFINED_VALUE") — a partial update (e.g. toggling only
+  // is_active) would crash with a 500 instead of leaving the omitted
+  // fields unchanged. Fall back to the existing row for anything the
+  // caller didn't send.
   const [updatedJob] = await sql`
-   UPDATE jobs SET title=${title},
-   description=${description},
-   salary=${salary},
-   location=${location},
-   role=${role},
-   job_type=${job_type},
-   work_location=${work_location},
-   openings=${openings},
-   is_active=${is_active}
+   UPDATE jobs SET title=${title ?? existingJob.title},
+   description=${description ?? existingJob.description},
+   salary=${salary ?? existingJob.salary},
+   location=${location ?? existingJob.location},
+   role=${role ?? existingJob.role},
+   job_type=${job_type ?? existingJob.job_type},
+   work_location=${work_location ?? existingJob.work_location},
+   openings=${openings ?? existingJob.openings},
+   is_active=${is_active ?? existingJob.is_active}
    WHERE job_id=${req.params.jobId} RETURNING *
   `;
 

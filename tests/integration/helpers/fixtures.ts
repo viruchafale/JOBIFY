@@ -27,6 +27,22 @@ export function plainTextBuffer(): Buffer {
   return Buffer.from("this is not a pdf\n", "utf8");
 }
 
+/** A minimal but structurally valid 1x1 PNG (correct magic bytes). */
+export function validPngBuffer(): Buffer {
+  return Buffer.from(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a4944415478" +
+      "0163f8ffffff" +
+      "3f0005fe02fea2f5f3cd0000000049454e44ae426082",
+    "hex",
+  );
+}
+
+/** Between the 2 MB assertImage limit and the 5 MB multer limit — exercises assertImage's own 413, not multer's. */
+export function oversizedImageBuffer(): Buffer {
+  const png = validPngBuffer();
+  return Buffer.concat([png, Buffer.alloc(3 * 1024 * 1024, 0)]);
+}
+
 let counter = 0;
 /** Unique-per-run email so repeated test executions never collide on the real unique constraint. */
 export function uniqueEmail(label: string): string {

@@ -1,5 +1,6 @@
 import request from "supertest";
 import { FRONTEND_ORIGIN, GATEWAY_URL } from "./config.js";
+import { validPdfBuffer, validPngBuffer } from "./fixtures.js";
 
 export interface RegisteredUser {
   user_id: number;
@@ -54,4 +55,64 @@ export async function createLoggedInRecruiter(email: string, password = "passwor
     throw new Error(`Failed to log in test recruiter: ${loginRes.status} ${JSON.stringify(loginRes.body)}`);
   }
   return { user_id: registerRes.body.user.user_id, email, cookie };
+}
+
+/** Register a jobseeker (with a valid resume PDF) and log them in. */
+export async function createLoggedInJobseeker(email: string, password = "password123"): Promise<RegisteredUser> {
+  const registerRes = await registerJobseeker(email, validPdfBuffer(), password);
+  if (registerRes.status !== 200 && registerRes.status !== 201) {
+    throw new Error(`Failed to create test jobseeker: ${registerRes.status} ${JSON.stringify(registerRes.body)}`);
+  }
+  const { res: loginRes, cookie } = await login(email, password);
+  if (!cookie) {
+    throw new Error(`Failed to log in test jobseeker: ${loginRes.status} ${JSON.stringify(loginRes.body)}`);
+  }
+  return { user_id: registerRes.body.user.user_id, email, cookie };
+}
+
+export interface CreatedCompany {
+  company_id: number;
+}
+
+/** Creates a company owned by the given recruiter session — requires the Cloudinary stub to be running (see helpers/cloudinaryStub.ts). */
+export async function createCompany(cookie: string, name: string): Promise<CreatedCompany> {
+  const res = await request(GATEWAY_URL)
+    .post("/api/job/company/new")
+    .set("Origin", FRONTEND_ORIGIN)
+    .set("Cookie", cookie)
+    .field("name", name)
+    .field("description", "A QA test company")
+    .field("website", "https://example.test")
+    .attach("file", validPngBuffer(), { filename: "logo.png", contentType: "image/png" });
+  if (res.status !== 200) {
+    throw new Error(`Failed to create test company: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+  return res.body.company as CreatedCompany;
+}
+
+export interface CreatedJob {
+  job_id: number;
+}
+
+/** Creates a job owned by the given recruiter session, under the given company. */
+export async function createJob(cookie: string, companyId: number, title: string): Promise<CreatedJob> {
+  const res = await request(GATEWAY_URL)
+    .post("/api/job/new")
+    .set("Origin", FRONTEND_ORIGIN)
+    .set("Cookie", cookie)
+    .send({
+      title,
+      description: "A QA test job",
+      salary: "100000",
+      location: "Remote",
+      role: "Engineering",
+      job_type: "Full-time",
+      work_location: "Remote",
+      company_id: companyId,
+      openings: 1,
+    });
+  if (res.status !== 200) {
+    throw new Error(`Failed to create test job: ${res.status} ${JSON.stringify(res.body)}`);
+  }
+  return res.body.newJob as CreatedJob;
 }

@@ -425,3 +425,174 @@ or §3.1 (IDOR) were made as part of this document. Those are the P0
 items above, to be picked up next — each following the required
 Bug → Reproduce → Regression test → Fix → Regression test passes → Full
 suite passes sequence, not a silent patch.
+
+---
+
+## 8. P0 fixes closed (follow-up pass)
+
+Everything in §1–§7 above is the original audit, unmodified — this
+section records what happened in the follow-up pass that actually fixed
+the four P0 items and added regression coverage for them. For each: the
+bug, the fix, the regression test, and whether red→green was actually
+demonstrated (reverting the fix, confirming the test fails, restoring
+it, confirming the test passes) or — for bugs fixed in an earlier
+session, before this test suite existed — relying on this audit's
+already-recorded live reproduction instead of re-breaking old code.
+
+New regression suite: `tests/integration/` (Vitest + Supertest, real
+HTTP against the real running Gateway — see `tests/integration/README.md`
+for exactly what is and isn't mocked, and why Cloudinary specifically
+needed a local stub in this environment).
+
+### 8.1 P0.1 — Resume upload (§2.2) — **fixed**
+
+Root cause confirmed by reading the code before changing anything, per
+instruction: `UPLOAD_SERVICE` and `INTERNAL_SERVICE_KEY` were absent from
+`docker-compose.yml` for every service that needed them. Fixed with the
+real Docker network service name (`http://utils-service:5004`, matching
+`utils-service`'s own `PORT: 5004`) — not `localhost`, which was
+considered and rejected since it's unreachable from a sibling container.
+
+A second, deeper instance of the same pattern was found while verifying
+the fix: `utils-service` itself reads `CLOUD_NAME`/`API_KEY`/`API_SECRET`
+for Cloudinary, but `docker-compose.yml` only ever set the differently
+named `CLOUDINARY_CLOUD_NAME`/`CLOUDINARY_API_KEY`/`CLOUDINARY_API_SECRET`
+— and only for the wrong services (`user-service`/`job-service`, the
+senders, not `utils-service`, the one that actually calls
+`cloudinary.config()`). Fixed the same way: mapped through to the real
+names, same root-level values.
+
+A third bug, unrelated to env-var naming, was found while verifying the
+oversized-file case specifically: every service's generic error handler
+computed HTTP status from `err.statusCode`/`err.status` only, which
+Multer's `LIMIT_FILE_SIZE` error never sets — so it fell through to 500
+despite the response body already correctly saying `"File too large"` /
+`"LIMIT_FILE_SIZE"`. Fixed in all four services' `observability.ts`.
+
+**Regression tests**: `tests/integration/upload.resume.test.ts` — valid
+jobseeker registration with a PDF, valid resume update for an existing
+user, non-PDF rejection, oversized rejection, unauthenticated rejection,
+and two internal-endpoint-protection cases (no key, wrong key).
+
+**Red→green demonstrated**: yes, for the actual `UPLOAD_SERVICE` wiring
+— temporarily removed it from `user-service` only (pure config, no code
+change) and reran the suite: exactly and only "an existing authenticated
+user can update their resume" failed (500), every other test (including
+the jobseeker-registration case, which goes through `auth-service`,
+unaffected) still passed — confirming the test is sensitive to the
+specific service it claims to protect, not just generally flaky.
+Restored, reran: 22/22 green.
+
+**Known environment limitation, not a code bug**: no real Cloudinary
+account exists in this environment. The regression test's "full success"
+assertions depend on a local HTTPS stub (self-signed cert,
+`CLOUDINARY_UPLOAD_PREFIX` override, `NODE_TLS_REJECT_UNAUTHORIZED=0` —
+all three inert by default, documented in `tests/integration/README.md`).
+A real deployment with real Cloudinary credentials needs none of this;
+the stub exists purely so this environment could verify the complete
+workflow rather than stopping at "reaches Cloudinary and gets a
+credentials error," which was the best this audit could do before this
+pass.
+
+### 8.2 P0.2 — IDOR on `GET /api/user/:userId` (§3.1) — **fixed**
+
+Checked the frontend (`account/[id]/page.tsx`, the endpoint's only
+caller) and job-service's application-review routes before deciding the
+fix, per instruction not to invent a new authorization model — found no
+documented or implemented recruiter/candidate cross-access relationship
+anywhere in the product. Fixed by enforcing authenticated user id ==
+requested user id, denied before any row is fetched (so a 403 can never
+confirm or deny whether a given id exists), in
+`services/user/src/controller/user.ts`.
+
+**Regression test**: `tests/integration/idor.profile.test.ts` — A→A
+(pass), B→B (pass), A→B (denied, body checked for B's email/phone/
+resume, not just status), B→A (denied, same body check), unauthenticated
+(denied). Checks response bodies, not only status codes, per instruction.
+
+**Red→green demonstrated**: yes — reverted the fix via `git stash`,
+rebuilt `user-service`, reran: `A→B` and `B→A` both failed with the
+exact original symptom (`200`, full profile body, instead of `403`).
+Restored via `git stash pop`, rebuilt, reran: 5/5 green.
+
+### 8.3 P0.3 — Gateway path-rewrite (§2.3) — **regression coverage added**
+
+This bug was already fixed in a prior session (`b99f688`), before this
+audit or this test suite existed. Added the regression coverage the
+audit flagged as missing.
+
+**Regression test**: `tests/integration/gateway.proxy.test.ts` — one
+representative route per service prefix (`/api/auth/login`,
+`/api/user/me`, `/api/job/all`, `/api/utils/upload`), asserting a real,
+path-specific JSON response rather than Express's generic
+`"Cannot GET /xxx"` HTML page, which is exactly what the unfixed
+version produced for every one of these.
+
+**Red→green demonstrated**: yes — temporarily reverted
+`services/gateway/src/proxy.ts`'s `pathRewrite` to the old no-op,
+rebuilt the Gateway, reran: all four path-reconstruction assertions
+failed with the exact historical symptom (HTML 404, not JSON). Restored
+the real fix, rebuilt, reran: full 22-test suite green.
+
+### 8.4 P0.4 — Registration regression coverage (§2.1) — **regression coverage added**
+
+All four bugs this covers (CORS env-var mismatch, `JWT_SECRET`/
+`SECRET_KEY` mismatch, the `create_at` typo, the frontend build-time URL
+bug) were fixed in the prior session (`5d29ea7`, `b99f688`, `2892cb2`,
+`873301c`), before this audit or test suite existed — each with its own
+live reproduction already recorded in §2.1. Not re-broken and re-fixed
+in this pass (four separate reverts for already well-documented history
+wasn't judged worth the cost); instead protected going forward.
+
+**Regression test**: `tests/integration/auth.registration.test.ts` —
+recruiter registration through to a working authenticated session
+(checking the `created_at` field specifically, the CORS header
+specifically, and a follow-up `/api/user/me` call specifically, so a
+regression in any one of the four original bugs would fail a targeted
+assertion, not just "something, somewhere, broke"), jobseeker
+registration with a PDF, duplicate-email rejection, invalid-role
+rejection, missing-field rejection.
+
+### 8.5 Verification run (this pass)
+
+All executed against the real running Docker Compose stack, through
+the real Gateway (`http://localhost:5500` in this environment — see
+`docs/DEPLOYMENT.md` for why non-default ports), never against an
+imported app:
+
+- `services/{auth,user,job,utils,gateway}`: `npx tsc --noEmit` clean,
+  `npm test` — 7 + 7 + 423 + 14 + 6 = **457/457 passed**
+- `frontend`: `npx tsc --noEmit` clean, `npm run build` succeeded (16
+  routes)
+- `tests/integration`: `npm test` — **22/22 passed**
+- Live, manual, through the Gateway, after all fixes:
+  - Recruiter registration → **PASS** (real user created, real session)
+  - Jobseeker registration with a PDF → **PASS** (resume URL stored)
+  - Existing-user resume update → **PASS**
+  - IDOR (`A`→`B`'s profile) → **PASS** (denied, `403`, no profile data
+    in the body)
+  - Gateway routing, one route per service → **PASS** (auth `400`,
+    user `401`, job `200`, utils `403` — all real, path-specific
+    responses)
+  - Full regression suite (unit + integration) → **PASS**
+- Confirmed the production rate limit is unweakened: after restoring
+  plain `NODE_ENV=production` defaults, `POST /api/auth/register`
+  correctly rate-limited at 5/hour again on the next attempt.
+
+### 8.6 What's still open
+
+- No Playwright/browser E2E yet (still correctly deferred — §6 already
+  scoped it as the next stage, not part of P0).
+- `docs/TESTING.md` not created (not requested this pass either).
+- P1–P3 items from §6 are unchanged and still open: Redis/Kafka
+  failure-injection tests, broader authorization matrix (profile
+  update, skill add/delete, company/job ownership), search edge cases,
+  job-intelligence live-reprocessing checks, the CORS-rejection 500→4xx
+  status-code cleanup.
+- One more instance of the `UPLOAD_SERVICE`/`INTERNAL_SERVICE_KEY`
+  pattern was found but is **not** covered by an automated regression
+  test yet: `job-service`'s company-logo upload and apply-with-resume
+  paths use the identical mechanism and were fixed by the same
+  `docker-compose.yml` change, and spot-checked once manually, but
+  don't have a `tests/integration` test of their own — only
+  `auth-service`'s and `user-service`'s upload paths do.

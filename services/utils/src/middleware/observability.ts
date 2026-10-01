@@ -36,7 +36,12 @@ export function requestTracker(serviceName: string) {
 }
 
 export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
-  const status = Number(err.statusCode || err.status) || 500;
+  // MulterError (file-size/file-count limits) is a client error, but it
+  // never sets .statusCode/.status, so it would otherwise fall through
+  // to the generic 500 below despite already carrying a specific,
+  // correct `code` (e.g. LIMIT_FILE_SIZE).
+  const isMulterLimitError = err.name === "MulterError" && typeof err.code === "string" && err.code.startsWith("LIMIT_");
+  const status = isMulterLimitError ? 400 : Number(err.statusCode || err.status) || 500;
   const requestId = (req as ObservabilityRequest).id || (req.headers["x-request-id"] as string);
 
   const errorResponse = {

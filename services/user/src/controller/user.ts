@@ -15,8 +15,17 @@ export const myProfile = TryCatch(
   },
 );
 
-export const getUserProfile = TryCatch(async (req, res, next) => {
+export const getUserProfile = TryCatch(async (req: AuthenticatedRequest, res, next) => {
   const { userId } = req.params;
+
+  // No recruiter/candidate cross-access relationship is implemented
+  // anywhere in the product today (no route ties a recruiter to a
+  // specific candidate's profile) — so the only legitimate caller of
+  // this endpoint is the profile's own owner. Denied before any row is
+  // fetched, so a rejected request can never leak whether the ID exists.
+  if (!req.user || req.user.user_id !== Number(userId)) {
+    throw new ErrorHandler(403, "Forbidden: you can only access your own profile");
+  }
 
   const users = await sql`
     SELECT 
